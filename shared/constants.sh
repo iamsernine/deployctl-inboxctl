@@ -1,7 +1,7 @@
 #!/usr/bin/env bash 
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: deployctl
+# project: deployctl-inboxctl 
 # SPDX-License-Identifier: MIT (see LICENSE)
 # Maintainer: BEN YAMNA Mohammed <iamsernine@gmail.com>
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
