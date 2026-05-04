@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 # project: deployctl-inboxctl: inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: BEN YAMNA Mohammed <iamsernine@gmail.com>
+# Maintainer: ACHAHROUR Mustapha <mustaphaachahrour@gmail.com>
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
 # ------------------------------------------------------------------------------
 #
