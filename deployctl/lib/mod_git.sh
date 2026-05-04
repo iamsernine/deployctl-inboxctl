@@ -2,12 +2,15 @@
 
 # this script will take one parameter is the APP_NAME
 
-APPS_CONFIG_FILES_PATH="/etc/deployctl/projects.d/"
+# shellcheck source=../../shared/constants.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/constants.sh"
+
+APPS_CONFIG_FILES_PATH="${DEPLOYCTL_PROJECTS_DIR}/"
 APP_NAME=$1
 
 if [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_name>"
-    exit 1
+    exit $ERR_MISSING_PARAM
 fi
 
 APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
@@ -35,7 +38,7 @@ if [ -z "$REPO_URL" ]; then
 fi
 
 # Clone the repository
-CLONE_DIR="/var/lib/deployctl/apps/pending/${APP_NAME}"
+CLONE_DIR="${DEPLOYCTL_PENDING_DIR}/${APP_NAME}"
 mkdir -p "$CLONE_DIR"
 git clone "$REPO_URL" "$CLONE_DIR" >/dev/null 2>&1
 
@@ -43,8 +46,12 @@ if [ $? -ne 0 ]; then
     echo "Failed to clone repository: $REPO_URL"
     rm -rf "$CLONE_DIR"
     log_event "ERROR" "CLONE" "$APP_NAME" "Failed to clone repository: $REPO_URL"
-    exit 1
+    exit $ERR_GIT_CLONE_FAILED
 fi
 
 echo "Repository cloned successfully: $REPO_URL"
 log_event "SUCCESS" "CLONE" "$APP_NAME" "Repository cloned successfully: $REPO_URL"
+
+
+
+exit 0

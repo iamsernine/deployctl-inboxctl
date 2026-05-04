@@ -2,13 +2,16 @@
 # IMPORTANT: i suposed that the app config contains REPO_NAME
 # this script will take one parameter is the APP_NAME
 
-APPS_CONFIG_FILES_PATH="/etc/deployctl/projects.d/"
+# shellcheck source=../../shared/constants.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/constants.sh"
+
+APPS_CONFIG_FILES_PATH="${DEPLOYCTL_PROJECTS_DIR}/"
 APP_NAME=$1
-ENV_FOLDER_PATH="/var/lib/deployctl/env/"
+ENV_FOLDER_PATH="${DEPLOYCTL_ENV_DIR}/"
 
 if [ -z "$APP_NAME" ]; then
     echo "Usage: $0 <app_name>"
-    exit 1
+    exit $ERR_MISSING_PARAM
 fi
 
 APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
@@ -29,7 +32,7 @@ get_conf() {
 
 log_event "INFOS" "BUILD" "$APP_NAME" "Configuration file loaded: $APP_CONFIG_FILE"
 
-REPO_PATH="/var/lib/deployctl/apps/pending/${APP_NAME}/$(get_conf "REPO_NAME")"
+REPO_PATH="${DEPLOYCTL_PENDING_DIR}/${APP_NAME}/$(get_conf "REPO_NAME")"
 
 if [ ! -d "$REPO_PATH" ]; then
     echo "Repository path not found: $REPO_PATH"
@@ -42,7 +45,7 @@ ENV_EXAMPLE_FILE="${REPO_PATH}/.env.example"
 if [ ! -f "$ENV_EXAMPLE_FILE" ]; then
     echo ".env.example file not found in repository .... ignoring .env file: $ENV_EXAMPLE_FILE"
     log_event "WARN" "BUILD" "$APP_NAME" ".env.example file not found in repository: $ENV_EXAMPLE_FILE"
-    exit 2 #this for warning
+    exit $ERR_ENV_EXAMPLE_MISSING #this for warning
 fi
 
 ENV_FILE="${ENV_FOLDER_PATH}${APP_NAME}.env"
@@ -79,3 +82,6 @@ done < "$ENV_EXAMPLE_FILE"
 
 echo "Environment variables for $APP_NAME have been set successfully."
 log_event "SUCCESS" "BUILD" "$APP_NAME" "Environment variables set successfully for $APP_NAME"
+
+
+exit 0

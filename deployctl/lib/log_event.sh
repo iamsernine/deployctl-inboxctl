@@ -1,7 +1,10 @@
 #!/bin/bash
 
+# shellcheck source=../../shared/constants.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../../shared/constants.sh"
+
 # Define the master log file location based on the architecture
-LOG_FILE="/var/log/deployctl/history.log"
+LOG_FILE="$DEPLOYCTL_HISTORY_LOG"
 
 # Ensure the log directory exists before trying to write to it
 mkdir -p "$(dirname "$LOG_FILE")"
