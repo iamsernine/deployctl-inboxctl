@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# this script will take one parameter is the APP_NAME
+
 APPS_CONFIG_FILES_PATH="/etc/deployctl/projects.d/"
 APP_NAME=$1
 
@@ -35,7 +37,7 @@ fi
 # Clone the repository
 CLONE_DIR="/var/lib/deployctl/apps/pending/${APP_NAME}"
 mkdir -p "$CLONE_DIR"
-git clone "$REPO_URL" "$CLONE_DIR"
+git clone "$REPO_URL" "$CLONE_DIR" >/dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo "Failed to clone repository: $REPO_URL"
