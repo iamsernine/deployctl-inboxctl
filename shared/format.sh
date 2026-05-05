@@ -49,7 +49,7 @@ print_table_line(){
     local out=""
     local first=1
     for col in "$@"; do 
-        if [[ $first -eq 1]]; then 
+        if [[ $first -eq 1 ]]; then 
             out="$col"
             first=0
         else 
@@ -98,7 +98,7 @@ write_key_value(){
     local tmp 
     tmp="$(mktemp)"
     local found=0
-    if [[ -f "$file"]];then
+    if [[ -f "$file" ]]; then
         while IFS= read -r line || [[ -n "$line" ]]; do
             if [[ "$line" == "$key="* ]]; then
                 printf '%s=%s\n' "$key" "$value"
@@ -143,4 +143,23 @@ normalize_path(){
         # Minimal fallback: strip duplicate slashes
         echo "$p" | sed 's|/\{2,\}|/|g'
     fi
+}
+
+
+# -----------------------------------------------------------------------------
+# find_free_port 
+# finds an available port in the range 3000-4000
+# returns: 0 if port found (port number on stdout), 1 if none available
+# -----------------------------------------------------------------------------
+find_free_port() {
+    local start_port=3000
+    local end_port=4000
+
+    for port in $(seq $start_port $end_port); do
+        if ! ss -tuln | grep -Eq ":$port\b"; then
+            echo "$port"
+            return 0
+        fi
+    done
+    return 1
 }

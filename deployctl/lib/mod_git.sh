@@ -1,5 +1,22 @@
 #!/bin/bash
 
+
+
+#
+# ------------------------------------------------------------------------------
+# project: deployctl-inboxctl: deployctl
+# SPDX-License-Identifier: MIT (see LICENSE)
+# Maintainer: Naouali Houssam <houssamnaouali04@gmail.com>
+# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# ------------------------------------------------------------------------------
+#
+# deployctl/lib/mod_git.sh - git repository management
+# manages git repositories cloning for deployctl projects
+#
+# requires: shared/constants.sh 
+# shellcheck shell=bash
+
+
 # this script will take one parameter is the APP_NAME
 
 # shellcheck source=../../shared/constants.sh
@@ -18,7 +35,7 @@ APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
 if [ ! -f "$APP_CONFIG_FILE" ]; then
     echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
     log_event "ERROR" "CLONE" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
-    exit 1
+    exit $ERR_CONFIG_FILE_MISSING
 fi
 
 # Load the configuration file
