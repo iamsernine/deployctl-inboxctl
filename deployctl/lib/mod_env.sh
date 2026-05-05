@@ -1,4 +1,21 @@
 #!/bin/bash
+
+
+
+#
+# ------------------------------------------------------------------------------
+# project: deployctl-inboxctl: deployctl
+# SPDX-License-Identifier: MIT (see LICENSE)
+# Maintainer: Naouali Houssam <houssamnaouali04@gmail.com>
+# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# ------------------------------------------------------------------------------
+#
+# deployctl/lib/mod_env.sh - environment variables management
+# manages environment variables for deployctl projects
+#
+# requires: shared/constants.sh 
+# shellcheck shell=bash
+
 # IMPORTANT: i suposed that the app config contains REPO_NAME
 # this script will take one parameter is the APP_NAME
 
@@ -19,7 +36,7 @@ APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
 if [ ! -f "$APP_CONFIG_FILE" ]; then
     echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
     log_event "ERROR" "BUILD" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
-    exit 1
+    exit $ERR_CONFIG_FILE_MISSING
 fi
 
 touch "${ENV_FOLDER_PATH}${APP_NAME}.env"
@@ -40,6 +57,8 @@ if [ ! -d "$REPO_PATH" ]; then
     exit 1
 fi
 
+
+
 ENV_EXAMPLE_FILE="${REPO_PATH}/.env.example"
 
 if [ ! -f "$ENV_EXAMPLE_FILE" ]; then
@@ -48,7 +67,8 @@ if [ ! -f "$ENV_EXAMPLE_FILE" ]; then
     exit $ERR_ENV_EXAMPLE_MISSING #this for warning
 fi
 
-ENV_FILE="${ENV_FOLDER_PATH}${APP_NAME}.env"
+# notice : this is a temporary env file in case of error it will be removed and if the build is successful it will be renamed to the final env file with the name of the app
+ENV_FILE="${ENV_FOLDER_PATH}${APP_NAME}_temp.env"
 
 cp "$ENV_EXAMPLE_FILE" "$ENV_FILE"
 
