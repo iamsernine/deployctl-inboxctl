@@ -172,7 +172,7 @@ ssh_fetch_since() {
     local cache_dir="${INBOXCTL_SERVER_CACHE_DIR}/${server_name}"
     mkdir -p "${cache_dir}"
 
-    local new_log="${cache_dir}/history_new.log"
+    local local_log="${cache_dir}/history.log"
     local tmp_log
     tmp_log="$(mktemp)"
 
@@ -190,10 +190,18 @@ ssh_fetch_since() {
         local line_count
         line_count="$(wc -l < "${tmp_log}")"
 
-        mv "${tmp_log}" "${new_log}"
-        chmod 600 "${new_log}"
+        if [[ "${line_count}" -eq 0 ]]; then
+            printf 'No new lines since %s\n' "${since}"
+            rm -f "${tmp_log}"
+            return 0
+        fi
 
-        printf 'Fetched %s new lines -> %s\n' "${line_count}" "${new_log}"
+        # append new lines to the existing history.log
+        cat "${tmp_log}" >> "${local_log}"
+        chmod 600 "${local_log}"
+        rm -f "${tmp_log}"
+
+        printf 'Fetched %s new lines -> %s\n' "${line_count}" "${local_log}"
         return 0
     else
         rm -f "${tmp_log}"
