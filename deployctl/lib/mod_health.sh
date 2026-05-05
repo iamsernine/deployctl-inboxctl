@@ -36,7 +36,7 @@ APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
 
 if [ ! -f "$APP_CONFIG_FILE" ]; then
     echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
-    log_event "ERROR" "CLONE" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
+    log_event "ERROR" "HEALTH" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
     exit $ERR_CONFIG_PARSE_ERROR
 fi
 
@@ -51,7 +51,7 @@ get_conf() {
 HEALTH_CHECK_PATH=$(get_conf "HEALTH_PATH")
 if [ -z "$HEALTH_CHECK_PATH" ]; then
     echo "HEALTH_PATH not defined in configuration file."
-    log_event "ERROR" "HEALTH_CHECK" "$APP_NAME" "HEALTH_PATH not defined in configuration file."
+    log_event "ERROR" "HEALTH" "$APP_NAME" "HEALTH_PATH not defined in configuration file."
     exit $ERR_CONFIG_PARSE_ERROR
 fi
 
@@ -64,7 +64,7 @@ HEALTH_CHECK_URL="http://127.0.0.1:$TMP_PORT$HEALTH_CHECK_PATH"
 
 # start health check loop
 echo "Starting health check for $APP_NAME at $HEALTH_CHECK_URL"
-log_event "INFOS" "HEALTH_CHECK" "$APP_NAME" "Starting health check at $HEALTH_CHECK_URL"
+log_event "INFOS" "HEALTH" "$APP_NAME" "Starting health check at $HEALTH_CHECK_URL"
 
 # these parameters will be fetched from the configuration file in the future, for now they are hardcoded
 MAX_RETRIES=10
@@ -75,16 +75,16 @@ while [ $MAX_RETRIES -gt 0 ]; do
     
     if [ "$HTTP_STATUS" -eq 200 ]; then
         echo "Health check successful for $APP_NAME. Application is healthy."
-        log_event "SUCCESS" "HEALTH_CHECK" "$APP_NAME" "Health check successful. Application is healthy."
+        log_event "SUCCESS" "HEALTH" "$APP_NAME" "Health check successful. Application is healthy."
         exit 0
     else
         echo "Health check failed for $APP_NAME. HTTP status: $HTTP_STATUS. Retrying in $RETRY_INTERVAL seconds..."
-        log_event "WARNING" "HEALTH_CHECK" "$APP_NAME" "Health check failed. HTTP status: $HTTP_STATUS. Retrying in $RETRY_INTERVAL seconds..."
+        log_event "WARNING" "HEALTH" "$APP_NAME" "Health check failed. HTTP status: $HTTP_STATUS. Retrying in $RETRY_INTERVAL seconds..."
         sleep $RETRY_INTERVAL
         ((MAX_RETRIES--))
     fi
 done
 
 echo "Health check failed for $APP_NAME after multiple attempts. Application is unhealthy."
-log_event "ERROR" "HEALTH_CHECK" "$APP_NAME" "Health check failed after multiple attempts. Application is unhealthy."
+log_event "ERROR" "HEALTH" "$APP_NAME" "Health check failed after multiple attempts. Application is unhealthy."
 exit $ERR_HEALTH_CHECK_FAILED
