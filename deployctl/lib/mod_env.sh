@@ -31,23 +31,22 @@ if [ -z "$APP_NAME" ]; then
     exit $ERR_MISSING_PARAM
 fi
 
-APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
+TEMP_APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
 
-if [ ! -f "$APP_CONFIG_FILE" ]; then
-    echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
-    log_event "ERROR" "BUILD" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
+if [ ! -f "$TEMP_APP_CONFIG_FILE" ]; then
+    echo "Configuration file for $APP_NAME not found: $TEMP_APP_CONFIG_FILE"
+    log_event "ERROR" "BUILD" "$APP_NAME" "Configuration file not found: $TEMP_APP_CONFIG_FILE"
     exit $ERR_CONFIG_FILE_MISSING
 fi
 
-touch "${ENV_FOLDER_PATH}${APP_NAME}.env"
 
 # Load the configuration file
 get_conf() {
     local key="$1"
-    grep "^${key}=" "$APP_CONFIG_FILE" | cut -d'=' -f2-
+    grep "^${key}=" "$TEMP_APP_CONFIG_FILE" | cut -d'=' -f2-
 }
 
-log_event "INFOS" "BUILD" "$APP_NAME" "Configuration file loaded: $APP_CONFIG_FILE"
+log_event "INFOS" "BUILD" "$APP_NAME" "Configuration file loaded: $TEMP_APP_CONFIG_FILE"
 
 REPO_PATH="${DEPLOYCTL_PENDING_DIR}/${APP_NAME}/$(get_conf "REPO_NAME")"
 
@@ -56,7 +55,6 @@ if [ ! -d "$REPO_PATH" ]; then
     log_event "ERROR" "BUILD" "$APP_NAME" "Repository path not found: $REPO_PATH"
     exit 1
 fi
-
 
 
 ENV_EXAMPLE_FILE="${REPO_PATH}/.env.example"
@@ -68,13 +66,13 @@ if [ ! -f "$ENV_EXAMPLE_FILE" ]; then
 fi
 
 # notice : this is a temporary env file in case of error it will be removed and if the build is successful it will be renamed to the final env file with the name of the app
-ENV_FILE="${ENV_FOLDER_PATH}${APP_NAME}_temp.env"
+TEMP_ENV_FILE="${ENV_FOLDER_PATH}${APP_NAME}_temp.env"
 
-cp "$ENV_EXAMPLE_FILE" "$ENV_FILE"
+cp "$ENV_EXAMPLE_FILE" "$TEMP_ENV_FILE"
 
 if [ $? -ne 0 ]; then
-    echo "Failed to copy .env.example to $ENV_FILE"
-    log_event "ERROR" "BUILD" "$APP_NAME" "Failed to copy .env.example to $ENV_FILE"
+    echo "Failed to copy .env.example to $TEMP_ENV_FILE"
+    log_event "ERROR" "BUILD" "$APP_NAME" "Failed to copy .env.example to $TEMP_ENV_FILE"
     exit 1
 fi
 
@@ -96,7 +94,7 @@ while IFS= read -r line || [ -n "$line" ]; do
         input_value="$default_value"
     fi
     # Update the .env file with the new value
-    sed -i "s/^$key=.*/$key=$input_value/" "$ENV_FILE"
+    sed -i "s/^$key=.*/$key=$input_value/" "$TEMP_ENV_FILE"
 
 done < "$ENV_EXAMPLE_FILE"
 

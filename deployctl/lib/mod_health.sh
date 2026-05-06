@@ -32,18 +32,18 @@ if [ -z "$APP_NAME" ]; then
     exit $ERR_MISSING_PARAM
 fi
 
-APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
+TEMP_APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}_temp.conf"
 
-if [ ! -f "$APP_CONFIG_FILE" ]; then
-    echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
-    log_event "ERROR" "HEALTH" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
+if [ ! -f "$TEMP_APP_CONFIG_FILE" ]; then
+    echo "Configuration file for $APP_NAME not found: $TEMP_APP_CONFIG_FILE"
+    log_event "ERROR" "HEALTH" "$APP_NAME" "Configuration file not found: $TEMP_APP_CONFIG_FILE"
     exit $ERR_CONFIG_PARSE_ERROR
 fi
 
 # get_conf to Load the configuration file
 get_conf() {
     local key="$1"
-    grep "^${key}=" "$APP_CONFIG_FILE" | cut -d'=' -f2-
+    grep "^${key}=" "$TEMP_APP_CONFIG_FILE" | cut -d'=' -f2-
 }
 #############################################################
 
@@ -59,8 +59,8 @@ if [[ "$HEALTH_CHECK_PATH" != /* ]]; then
     HEALTH_CHECK_PATH="/$HEALTH_CHECK_PATH"
 fi
 
-TMP_PORT=$(get_conf "TMP_PORT")
-HEALTH_CHECK_URL="http://127.0.0.1:$TMP_PORT$HEALTH_CHECK_PATH"
+PORT=$(get_conf "PORT")
+HEALTH_CHECK_URL="http://127.0.0.1:$PORT$HEALTH_CHECK_PATH"
 
 # start health check loop
 echo "Starting health check for $APP_NAME at $HEALTH_CHECK_URL"
