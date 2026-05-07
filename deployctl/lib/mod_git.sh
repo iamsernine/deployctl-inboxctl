@@ -30,31 +30,31 @@ if [ -z "$APP_NAME" ]; then
     exit $ERR_MISSING_PARAM
 fi
 
-APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
+TEMP_APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}_temp.conf"
 
-if [ ! -f "$APP_CONFIG_FILE" ]; then
-    echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
-    log_event "ERROR" "CLONE" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
+if [ ! -f "$TEMP_APP_CONFIG_FILE" ]; then
+    echo "Configuration file for $APP_NAME not found: $TEMP_APP_CONFIG_FILE"
+    log_event "ERROR" "CLONE" "$APP_NAME" "Configuration file not found: $TEMP_APP_CONFIG_FILE"
     exit $ERR_CONFIG_FILE_MISSING
 fi
 
 # Load the configuration file
 get_conf() {
     local key="$1"
-    grep "^${key}=" "$APP_CONFIG_FILE" | cut -d'=' -f2-
+    grep "^${key}=" "$TEMP_APP_CONFIG_FILE" | cut -d'=' -f2-
 }
 
-log_event "INFOS" "CLONE" "$APP_NAME" "Configuration file loaded: $APP_CONFIG_FILE"
+log_event "INFOS" "CLONE" "$APP_NAME" "Configuration file loaded: $TEMP_APP_CONFIG_FILE"
+
 
 REPO_URL=$(get_conf "REPO_URL")
 
 if [ -z "$REPO_URL" ]; then
     echo "REPO_URL not defined in configuration file."
     log_event "ERROR" "CLONE" "$APP_NAME" "REPO_URL not defined in configuration file."
-    exit 1
+    exit $ERR_CONFIG_PARSE_ERROR
 fi
 
-# Clone the repository
 CLONE_DIR="${DEPLOYCTL_PENDING_DIR}/${APP_NAME}"
 mkdir -p "$CLONE_DIR"
 git clone "$REPO_URL" "$CLONE_DIR" >/dev/null 2>&1

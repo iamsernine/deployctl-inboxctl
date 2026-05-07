@@ -30,18 +30,18 @@ if [ -z "$APP_NAME" ]; then
     exit $ERR_MISSING_PARAM
 fi
 
-APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}.conf"
+TEMP_APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}_temp.conf"
 
-if [ ! -f "$APP_CONFIG_FILE" ]; then
-    echo "Configuration file for $APP_NAME not found: $APP_CONFIG_FILE"
-    log_event "ERROR" "NGINX" "$APP_NAME" "Configuration file not found: $APP_CONFIG_FILE"
+if [ ! -f "$TEMP_APP_CONFIG_FILE" ]; then
+    echo "Configuration file for $APP_NAME not found: $TEMP_APP_CONFIG_FILE"
+    log_event "ERROR" "NGINX" "$APP_NAME" "Configuration file not found: $TEMP_APP_CONFIG_FILE"
     exit $ERR_CONFIG_PARSE_ERROR
 fi
 
 # get_conf to Load the configuration file
 get_conf() {
     local key="$1"
-    grep "^${key}=" "$APP_CONFIG_FILE" | cut -d'=' -f2-
+    grep "^${key}=" "$TEMP_APP_CONFIG_FILE" | cut -d'=' -f2-
 }
 
 #############################################################
@@ -50,18 +50,17 @@ APP_CACHE_DIR="${DEPLOYCTL_CACHE_DIR}/temp/${APP_NAME}"
 APP_NGINX_TMP_CONFIG_FILE="${APP_CACHE_DIR}/nginx.conf"
 APP_NGINX_CONFIG_FILE="/etc/nginx/sites-available/${APP_NAME}"
 DOMAIN=$(get_conf "DOMAIN")
-PORT=$(get_conf "TMP_PORT")
+PORT=$(get_conf "PORT")
 
 mkdir -p "$APP_CACHE_DIR"
-
+# ///////////// cc
 if [ -f "$APP_NGINX_CONFIG_FILE" ]; then
    cat "$APP_NGINX_CONFIG_FILE" > "$APP_NGINX_TMP_CONFIG_FILE" 
 fi
 
-
 if [ -z "$DOMAIN" ] || [ -z "$PORT" ]; then
-    echo "DOMAIN or TMP_PORT not defined in $APP_CONFIG_FILE"
-    log_event "ERROR" "NGINX" "$APP_NAME" "DOMAIN or TMP_PORT not defined in config"
+    echo "DOMAIN or PORT not defined in $TEMP_APP_CONFIG_FILE"
+    log_event "ERROR" "NGINX" "$APP_NAME" "DOMAIN or PORT not defined in config"
     exit $ERR_CONFIG_PARSE_ERROR
 fi
 
@@ -94,15 +93,22 @@ server {
 }
 EOF
 
+# //// cc
 ln -sf "$APP_NGINX_CONFIG_FILE" "/etc/nginx/sites-enabled/${APP_NAME}"
 
 if ! nginx -t > /dev/null 2>&1; then
     echo "Nginx configuration test failed. Please check the config file: $APP_NGINX_CONFIG_FILE"
     log_event "ERROR" "NGINX" "$APP_NAME" "Nginx configuration test failed"
-    exit $ERR_CONFIG_PARSE_ERROR
+    exit $ERR_NGINX_CONFIG_FAILED
 fi
 
 systemctl reload nginx
+if [ "$?" -ne 0 ]; then
+    echo "Failed to reload Nginx. Please check the Nginx service status."
+    log_event "ERROR" "NGINX" "$APP_NAME" "Failed to reload Nginx"
+    exit $ERR_NGINX_CONFIG_FAILED
+fi
+
 log_event "INFO" "NGINX" "$APP_NAME" "Nginx configuration applied and reloaded successfully"
 
 
