@@ -8,6 +8,7 @@
 # ------------------------------------------------------------------------------
 #
 # deployctl/lib/mod_error.sh - centralized fatal exits and deployement rollback  hooks
+
 # shellcheck shell=bash 
 # read https://www.shellcheck.net/wiki/ about shellcheck
 

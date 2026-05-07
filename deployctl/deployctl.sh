@@ -103,3 +103,75 @@ deployctl_write_project_conf(){
     } >"$out"
     return 0
 }
+
+# -----------------------------------------------------------------------------
+# deployctl_parse_deploy_argv 
+# Parses deploy subcommand arguments into globals (read the constants :) from cmd ) .
+# Sets: DEPLOY_ARG_APP, DEPLOY_ARG_REPO, DEPLOY_ARG_DOMAIN, DEPLOY_ARG_PORT, DEPLOY_ARG_SSL
+# Returns: 0
+# -----------------------------------------------------------------------------
+
+deployctl_parse_deploy_argv(){
+    DEPLOYCTL_ARG_APP=""
+    DEPLOYCTL_ARG_REPO=""
+    DEPLOYCTL_ARG_DOMAIN=""
+    DEPLOYCTL_ARG_PORT=""
+    DEPLOYCTL_ARG_SSL="no"
+
+    while [[ $# -gt 0]]; do
+        case "$1" in 
+            --repo)
+                DEPLOYCTL_ARG_REPO="$2"
+                shift 2 
+                ;;
+            --domain) 
+                DEPLOYCTL_ARG_DOMAIN="$2"
+                shift 2
+                ;;
+            --port)
+                DEPLOYCTL_ARG_PORT="$2"
+                shift 2
+                ;;
+            --ssl)
+                DEPLOYCTL_ARG_SSL="$2"
+                shift 2
+                ;;
+            *)
+                if [[ -z "$DEPLOYCTL_ARG_APP" ]]; then 
+                    DEPLOYCTL_ARG_APP="$1"
+                    shift
+                else
+                    exit_with_error "$ERR_UNKNOWN_OPTION" "unexpected deploy argument: $1"
+                fi
+                ;;
+        esac
+    done
+    return 0 
+}
+
+# -----------------------------------------------------------------------------
+# deployctl_cmd_check
+# Verifies dependencies and directory layout.
+# Returns: 0 on success
+# -----------------------------------------------------------------------------
+
+deployctl_cmd_check(){
+    init_logs 
+    log_info "deployctl check starting "
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" == "1" ]]; then 
+        log_info "[dry-run] dependency checks skipped (docker/git/nginx/curl/ss)"
+        deployctl_ensure_layout || true
+        log_info "deployctl check OK (dry-run)" 
+        return 0 
+    fi 
+    if ! deployctl_check_dependencies; then 
+        exit_with_error "$ERR_DEPENDENCY_MISSING" "dependency check failed "  # TODO: add mod for installation the missing packages 
+    fi 
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" != "1" ]] && ! require_root; then 
+        log_error "check: not root - some paths may be inaccessible" 
+    fi 
+    deployctl_ensure_layout || exit_with_error "$ERR_FILE_PERMISSION_ERROR" "layout failed" 
+    log_info "deployctl check OK"
+    return 0 
+}
+
