@@ -123,7 +123,7 @@ ssh_fetch() {
     _ssh_base_args
 
     # prepare local cache directory for this server
-    local cache_dir="${INBOXCTL_SERVER_CACHE_DIR}/${server_name}"
+    local cache_dir="${INBOXCTL_SERVER_CACHE_DIR}/${server_name}/logs"
     mkdir -p "${cache_dir}" || {
         printf 'ERROR: cannot create cache dir: %s\n' "${cache_dir}" >&2
         exit "${ERR_FILE_PERMISSION_ERROR}"
@@ -169,7 +169,7 @@ ssh_fetch_since() {
     _require_server_vars
     _ssh_base_args
 
-    local cache_dir="${INBOXCTL_SERVER_CACHE_DIR}/${server_name}"
+    local cache_dir="${INBOXCTL_SERVER_CACHE_DIR}/${server_name}/logs"
     mkdir -p "${cache_dir}"
 
     local local_log="${cache_dir}/history.log"

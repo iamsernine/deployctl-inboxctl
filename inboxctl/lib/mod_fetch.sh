@@ -28,7 +28,7 @@
 # -----------------------------------------------------------------------------
 _fetch_cache_log_path() {
     local server_name="${1:?server name required}"
-    printf '%s/%s/history.log' \
+    printf '%s/%s/logs/history.log' \
         "${INBOXCTL_SERVER_CACHE_DIR}" "${server_name}"
 }
 
