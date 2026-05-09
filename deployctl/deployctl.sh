@@ -29,7 +29,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SHARED="${DEPLOY_SHARED_ROOT:-${REPO_ROOT}/shared}"
 
 # fallback if repo layout differs : ${VAR:-default} above, then re-point SHARED 
-if [[ ! -f "${SHARED}/constants.sh"]]; then 
+if [[ ! -f "${SHARED}/constants.sh" ]]; then 
     SHARED="${SCRIPT_DIR}/../shared"
 fi 
 

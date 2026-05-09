@@ -20,7 +20,7 @@
 # -----------------------------------------------------------------------------
 validate_app_name(){
     local name="${1:-}"
-    if [[ -z "$name"]]; then 
+    if [[ -z "$name" ]]; then 
         return 1 
     fi 
     if [[ "$name" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]]; then 
