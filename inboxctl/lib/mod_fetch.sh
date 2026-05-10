@@ -88,8 +88,14 @@ fetch_full() {
     # verify remote log exists and is readable
     ssh_check_remote_log || exit "${ERR_SSH_FAILED}"
 
-    # fetch full log
+    # initialize cache for this server
+    cache_init "${server_name}"
+
+    # fetch full
     ssh_fetch "${server_name}"
+    ssh_fetch_projects "${server_name}"
+    ssh_fetch_project_logs "${server_name}"
+    ssh_fetch_meta "${server_name}"
 
     local local_log
     local_log="$(_fetch_cache_log_path "${server_name}")"
