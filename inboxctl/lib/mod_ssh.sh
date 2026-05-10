@@ -70,6 +70,12 @@ _require_server_vars() {
 # Public API
 # =============================================================================
 
+
+# TESTING MODE — comment this out for production
+source /tmp/mock_ssh.sh
+return 0
+
+
 # -----------------------------------------------------------------------------
 # ssh_test
 # verifies the SSH connection to the server is working
@@ -176,13 +182,19 @@ ssh_fetch_since() {
     local tmp_log
     tmp_log="$(mktemp)"
 
+    # count how many lines we already have locally
+    local local_lines=0
+    if [[ -f "${local_log}" ]]; then
+        local_lines="$(wc -l < "${local_log}")"
+    fi
+
     printf 'Fetching logs since %s from %s...\n' "${since}" "${SERVER_HOST}"
 
-    # use awk on the remote side to filter lines by timestamp
-    # log format: yyyy-mm-dd-hh-mm-ss : user : LEVEL : message
-    # compare timestamp field ($1) lexicographically >= since
+    # skip exactly the lines we already have, fetch only what's new
+    # tail -n +N means "start from line N" (1-indexed)
+    # so tail -n +$(local_lines+1) skips first local_lines lines
     local remote_cmd
-    remote_cmd="awk -F' : ' '\$1 >= \"${since}\"' '${SERVER_REMOTE_LOG_PATH}'"
+    remote_cmd="tail -n +$((local_lines + 1)) '${SERVER_REMOTE_LOG_PATH}'"
 
     if ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" "${remote_cmd}" \
         > "${tmp_log}" 2>/dev/null; then
@@ -201,7 +213,7 @@ ssh_fetch_since() {
         chmod 600 "${local_log}"
         rm -f "${tmp_log}"
 
-        printf 'Fetched %s new lines -> %s\n' "${line_count}" "${local_log}"
+        printf 'Appended %s new lines -> %s\n' "${line_count}" "${local_log}"
         return 0
     else
         rm -f "${tmp_log}"
@@ -262,4 +274,161 @@ ssh_check_remote_log() {
         printf 'Make sure deployctl has run at least once on the server.\n' >&2
         return 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# ssh_fetch_projects
+# fetches all project .conf files from /etc/deployctl/projects.d/ on the server
+# stores each one locally via cache_store_project_conf
+# Args: $1=server_name
+# returns: 0 on success, exits with ERR_SSH_FAILED on failure
+# -----------------------------------------------------------------------------
+ssh_fetch_projects() {
+    local server_name="${1:?server name required}"
+    _require_server_vars
+    _ssh_base_args
+ 
+    printf 'Fetching project configs from %s...\n' "${SERVER_HOST}"
+ 
+    # get list of .conf files on the remote server
+    local remote_list
+    remote_list="$(ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" \
+        "ls -1 '${DEPLOYCTL_PROJECTS_DIR}'/*.conf 2>/dev/null" 2>/dev/null)" || {
+        printf 'WARNING: no project configs found on server\n' >&2
+        return 0
+    }
+ 
+    if [[ -z "${remote_list}" ]]; then
+        printf 'No project configs found in %s\n' "${DEPLOYCTL_PROJECTS_DIR}"
+        return 0
+    fi
+ 
+    local count=0
+    while IFS= read -r remote_conf; do
+        [[ -z "${remote_conf}" ]] && continue
+ 
+        # extract app name from filename (e.g. myapp.conf → myapp)
+        local app_name
+        app_name="$(basename "${remote_conf}" .conf)"
+ 
+        # fetch content of the .conf file
+        local content
+        content="$(ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" \
+            "cat '${remote_conf}'" 2>/dev/null)" || {
+            printf 'WARNING: could not read %s\n' "${remote_conf}" >&2
+            continue
+        }
+ 
+        # store locally via mod_cache.sh
+        cache_store_project_conf "${server_name}" "${app_name}" "${content}"
+        ((count++))
+ 
+    done <<< "${remote_list}"
+ 
+    printf '[ssh] Fetched %s project config(s) from %s\n' \
+        "${count}" "${SERVER_HOST}"
+    return 0
+}
+ 
+# -----------------------------------------------------------------------------
+# ssh_fetch_project_logs
+# fetches per-project log files from /var/log/deployctl/projects/ on the server
+# stores each one locally via cache_store_project_log
+# Args: $1=server_name
+# returns: 0 on success
+# -----------------------------------------------------------------------------
+ssh_fetch_project_logs() {
+    local server_name="${1:?server name required}"
+    _require_server_vars
+    _ssh_base_args
+ 
+    printf 'Fetching project logs from %s...\n' "${SERVER_HOST}"
+ 
+    # get list of .log files in remote projects log dir
+    local remote_list
+    remote_list="$(ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" \
+        "ls -1 '${DEPLOYCTL_PROJECT_LOG_DIR}'/*.log 2>/dev/null" 2>/dev/null)" || {
+        printf 'WARNING: no project logs found on server\n' >&2
+        return 0
+    }
+ 
+    if [[ -z "${remote_list}" ]]; then
+        printf 'No project logs found in %s\n' "${DEPLOYCTL_PROJECT_LOG_DIR}"
+        return 0
+    fi
+ 
+    local count=0
+    while IFS= read -r remote_log; do
+        [[ -z "${remote_log}" ]] && continue
+ 
+        local app_name
+        app_name="$(basename "${remote_log}" .log)"
+ 
+        local content
+        content="$(ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" \
+            "cat '${remote_log}'" 2>/dev/null)" || {
+            printf 'WARNING: could not read %s\n' "${remote_log}" >&2
+            continue
+        }
+ 
+        cache_store_project_log "${server_name}" "${app_name}" "${content}"
+        ((count++))
+ 
+    done <<< "${remote_list}"
+ 
+    printf '[ssh] Fetched %s project log(s) from %s\n' \
+        "${count}" "${SERVER_HOST}"
+    return 0
+}
+ 
+# -----------------------------------------------------------------------------
+# ssh_fetch_meta
+# fetches server system info (os, uptime, disk, memory) via SSH
+# stores result locally via cache_write_meta
+# Args: $1=server_name
+# returns: 0 on success, exits with ERR_SSH_FAILED on failure
+# -----------------------------------------------------------------------------
+ssh_fetch_meta() {
+    local server_name="${1:?server name required}"
+    _require_server_vars
+    _ssh_base_args
+ 
+    printf 'Fetching server metadata from %s...\n' "${SERVER_HOST}"
+ 
+    # fetch all 4 values in one SSH connection using a heredoc command
+    local raw
+    raw="$(ssh "${_SSH_ARGS[@]}" "$(_ssh_target)" '
+        # OS info — extract PRETTY_NAME from /etc/os-release
+        os=$(grep "PRETTY_NAME=" /etc/os-release | sed 's/.*="\(.*\)"/\1/' 2>/dev/null)
+        [[ -z "$os" ]] && os="unknown"
+ 
+        # uptime — human readable
+        uptime_str=$(uptime -p 2>/dev/null || uptime 2>/dev/null || echo "unknown")
+ 
+        # disk usage of / — percentage used
+        disk=$(df -h / 2>/dev/null | awk "NR==2 {print \$5}" || echo "unknown")
+ 
+        # memory — used/total
+        memory=$(free -h 2>/dev/null \
+            | 9
+ 
+        printf "%s\n%s\n%s\n%s\n" "$os" "$uptime_str" "$disk" "$memory"
+    ' 2>/dev/null)" || {
+        printf 'ERROR: failed to fetch metadata from %s\n' \
+            "${SERVER_HOST}" >&2
+        exit "${ERR_SSH_FAILED}"
+    }
+ 
+    # parse the 4 lines into variables
+    local os uptime_str disk memory
+    os="$(       printf '%s' "${raw}" | sed -n '1p')"
+    uptime_str="$(printf '%s' "${raw}" | sed -n '2p')"
+    disk="$(     printf '%s' "${raw}" | sed -n '3p')"
+    memory="$(   printf '%s' "${raw}" | sed -n '4p')"
+ 
+    # store locally
+    cache_write_meta "${server_name}" "${os}" "${uptime_str}" "${disk}" "${memory}"
+ 
+    printf '[ssh] Metadata fetched and cached for server: %s\n' "${server_name}"
+    return 0
 }
