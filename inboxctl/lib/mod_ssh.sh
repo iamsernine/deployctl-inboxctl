@@ -70,12 +70,6 @@ _require_server_vars() {
 # Public API
 # =============================================================================
 
-
-# TESTING MODE — comment this out for production
-source /tmp/mock_ssh.sh
-return 0
-
-
 # -----------------------------------------------------------------------------
 # ssh_test
 # verifies the SSH connection to the server is working
