@@ -94,7 +94,7 @@ fetch_full() {
     local local_log
     local_log="$(_fetch_cache_log_path "${server_name}")"
     printf '[fetch] Full fetch complete: %s\n' "${local_log}"
-    printf '%s' "${local_log}"
+    printf '%s\n' "${local_log}"
     return 0
 }
 
@@ -137,7 +137,7 @@ fetch_incremental() {
     printf '[fetch] Incremental fetch complete: %s total lines -> %s\n' \
         "${line_count}" "${local_log}"
 
-    printf '%s' "${local_log}"
+    printf '%s\n' "${local_log}"
     return 0
 }
 
