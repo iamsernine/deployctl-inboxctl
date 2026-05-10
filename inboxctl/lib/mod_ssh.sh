@@ -53,11 +53,11 @@ _ssh_target() {
 # -----------------------------------------------------------------------------
 _require_server_vars() {
     local missing=()
-    [[ -z "${SERVER_HOST:-}"           ]] && missing+=("SERVER_HOST")
-    [[ -z "${SERVER_USER:-}"           ]] && missing+=("SERVER_USER")
-    [[ -z "${SERVER_PORT:-}"           ]] && missing+=("SERVER_PORT")
-    [[ -z "${SERVER_SSH_KEY:-}"        ]] && missing+=("SERVER_SSH_KEY")
-    [[ -z "${SERVER_REMOTE_LOG_PATH:-}"]] && missing+=("SERVER_REMOTE_LOG_PATH")
+    [[ -z "${SERVER_HOST:-}"            ]] && missing+=("SERVER_HOST")
+    [[ -z "${SERVER_USER:-}"            ]] && missing+=("SERVER_USER")
+    [[ -z "${SERVER_PORT:-}"            ]] && missing+=("SERVER_PORT")
+    [[ -z "${SERVER_SSH_KEY:-}"         ]] && missing+=("SERVER_SSH_KEY")
+    [[ -z "${SERVER_REMOTE_LOG_PATH:-}" ]] && missing+=("SERVER_REMOTE_LOG_PATH")
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         printf 'ERROR: server_load must be called before ssh_*\n' >&2
