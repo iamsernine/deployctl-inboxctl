@@ -180,7 +180,7 @@ fetch_and_pipe() {
     while IFS= read -r line || [[ -n "${line}" ]]; do
         [[ -z "${line// /}" ]] && continue   # skip blank lines: //(" ") :search and replace space (" ") with /"" (nothing)
         "${handler}" "${line}"
-        ((count++))
+        count=$((count + 1))
     done < "${log_path}"
 
     printf '[fetch] Piped %s lines to %s\n' "${count}" "${handler}"

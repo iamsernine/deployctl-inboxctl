@@ -315,7 +315,7 @@ ssh_fetch_projects() {
  
         # store locally via mod_cache.sh
         cache_store_project_conf "${server_name}" "${app_name}" "${content}"
-        ((count++))
+        count=$((count + 1))
  
     done <<< "${remote_list}"
  
@@ -366,7 +366,7 @@ ssh_fetch_project_logs() {
         }
  
         cache_store_project_log "${server_name}" "${app_name}" "${content}"
-        ((count++))
+        count=$((count + 1))
  
     done <<< "${remote_list}"
  

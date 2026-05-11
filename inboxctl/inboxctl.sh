@@ -239,7 +239,12 @@ _dispatch() {
                     ;;
                 *)
                     # default: incremental fetch
-                    fetch_incremental "${mode:?server name required}"
+                    if [[ -z "${mode}" ]]; then
+                        printf 'ERROR: server name required\n' >&2
+                        _usage
+                        exit "${ERR_MISSING_PARAM}"
+                    fi
+                    fetch_incremental "${mode}"
                     ;;
             esac
             ;;
@@ -305,7 +310,7 @@ elif [[ "${OPT_SUBSHELL}" == true ]]; then
     # run in an isolated subshell; env changes stay local
     (
         export SUBSHELL_CONTEXT=true
-        printf '[inboxctl] subshell started (PID: $$, PPID: %s)\n' "${PPID}"
+        printf '[inboxctl] subshell started (PID: %s, PPID: %s)\n' "$$" "${PPID}"
         _dispatch "$@"
     )
     SUBSHELL_STATUS=$?
