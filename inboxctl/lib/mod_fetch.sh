@@ -28,7 +28,7 @@
 # -----------------------------------------------------------------------------
 _fetch_cache_log_path() {
     local server_name="${1:?server name required}"
-    printf '%s/%s/history.log' \
+    printf '%s/%s/logs/history.log' \
         "${INBOXCTL_SERVER_CACHE_DIR}" "${server_name}"
 }
 
@@ -88,13 +88,19 @@ fetch_full() {
     # verify remote log exists and is readable
     ssh_check_remote_log || exit "${ERR_SSH_FAILED}"
 
-    # fetch full log
+    # initialize cache for this server
+    cache_init "${server_name}"
+
+    # fetch full
     ssh_fetch "${server_name}"
+    ssh_fetch_projects "${server_name}"
+    ssh_fetch_project_logs "${server_name}"
+    ssh_fetch_meta "${server_name}"
 
     local local_log
     local_log="$(_fetch_cache_log_path "${server_name}")"
     printf '[fetch] Full fetch complete: %s\n' "${local_log}"
-    printf '%s' "${local_log}"
+    printf '%s\n' "${local_log}"
     return 0
 }
 
@@ -137,7 +143,7 @@ fetch_incremental() {
     printf '[fetch] Incremental fetch complete: %s total lines -> %s\n' \
         "${line_count}" "${local_log}"
 
-    printf '%s' "${local_log}"
+    printf '%s\n' "${local_log}"
     return 0
 }
 
@@ -174,7 +180,7 @@ fetch_and_pipe() {
     while IFS= read -r line || [[ -n "${line}" ]]; do
         [[ -z "${line// /}" ]] && continue   # skip blank lines: //(" ") :search and replace space (" ") with /"" (nothing)
         "${handler}" "${line}"
-        ((count++))
+        count=$((count + 1))
     done < "${log_path}"
 
     printf '[fetch] Piped %s lines to %s\n' "${count}" "${handler}"
