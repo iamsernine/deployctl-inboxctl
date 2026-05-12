@@ -24,7 +24,7 @@ deployctl_check_dependencies(){
     require_command nginx nginx  || missing+=("nginx")
     require_command curl curl || missing+=("curl")
     require_command ss ss || missing+=("iproute2/ss")
-    if [[ ${#missing[@]} -gt 0]]; then 
+    if [[ ${#missing[@]} -gt 0 ]]; then 
         log_error "missing dependencies: ${missing[*]}"
         return 1 
     fi 

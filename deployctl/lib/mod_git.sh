@@ -1,74 +1,45 @@
-#!/bin/bash
-
-
-
+#!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: deployctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: Naouali Houssam <houssamnaouali04@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
-# deployctl/lib/mod_git.sh - git repository management
-# manages git repositories cloning for deployctl projects
-#
-# requires: shared/constants.sh 
+# deployctl/lib/mod_git.sh — Clone application source into pending directory.
+
 # shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
+# -----------------------------------------------------------------------------
+# deployctl_git_clone_repo
+# Clones URL into target directory (removes dir first if dry-run skip).
+# Args: $1=repo URL, $2=target directory
+# Returns: 0 on success
+# Study: https://git-scm.com/docs/git-clone (--depth 1)
+# -----------------------------------------------------------------------------
+deployctl_git_clone_repo() {
+    local url="$1"
+    local target="$2"
 
-# this script will take one parameter is the APP_NAME
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" == "1" ]]; then
+        log_info "[dry-run] git clone ${url} -> ${target}"
+        return 0
+    fi
 
-# shellcheck source=../../shared/constants.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../../shared/constants.sh"
-
-APPS_CONFIG_FILES_PATH="${DEPLOYCTL_PROJECTS_DIR}/"
-APP_NAME=$1
-
-if [ -z "$APP_NAME" ]; then
-    echo "Usage: $0 <app_name>"
-    exit $ERR_MISSING_PARAM
-fi
-
-TEMP_APP_CONFIG_FILE="${APPS_CONFIG_FILES_PATH}${APP_NAME}_temp.conf"
-
-if [ ! -f "$TEMP_APP_CONFIG_FILE" ]; then
-    echo "Configuration file for $APP_NAME not found: $TEMP_APP_CONFIG_FILE"
-    log_event "ERROR" "CLONE" "$APP_NAME" "Configuration file not found: $TEMP_APP_CONFIG_FILE"
-    exit $ERR_CONFIG_FILE_MISSING
-fi
-
-# Load the configuration file
-get_conf() {
-    local key="$1"
-    grep "^${key}=" "$TEMP_APP_CONFIG_FILE" | cut -d'=' -f2-
+    rm -rf "$target"
+    mkdir -p "$(dirname "$target")"
+    if git clone --depth 1 "$url" "$target"; then
+        log_info "cloned ${url} to ${target}"
+        return 0
+    fi
+    log_error "git clone failed for ${url}"
+    return 1
 }
-
-log_event "INFOS" "CLONE" "$APP_NAME" "Configuration file loaded: $TEMP_APP_CONFIG_FILE"
-
-
-REPO_URL=$(get_conf "REPO_URL")
-
-if [ -z "$REPO_URL" ]; then
-    echo "REPO_URL not defined in configuration file."
-    log_event "ERROR" "CLONE" "$APP_NAME" "REPO_URL not defined in configuration file."
-    exit $ERR_CONFIG_PARSE_ERROR
-fi
-
-CLONE_DIR="${DEPLOYCTL_PENDING_DIR}/${APP_NAME}"
-mkdir -p "$CLONE_DIR"
-git clone "$REPO_URL" "$CLONE_DIR" >/dev/null 2>&1
-
-if [ $? -ne 0 ]; then
-    echo "Failed to clone repository: $REPO_URL"
-    rm -rf "$CLONE_DIR"
-    log_event "ERROR" "CLONE" "$APP_NAME" "Failed to clone repository: $REPO_URL"
-    exit $ERR_GIT_CLONE_FAILED
-fi
-
-echo "Repository cloned successfully: $REPO_URL"
-log_event "SUCCESS" "CLONE" "$APP_NAME" "Repository cloned successfully: $REPO_URL"
-
-
-
-exit 0
