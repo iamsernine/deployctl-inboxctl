@@ -1,15 +1,22 @@
-#!/usr/bin/env bash
-#
-# ------------------------------------------------------------------------------
-# Project: deployctl-inboxctl
-# SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: YOUR_NAME <YOUR_EMAIL>
-# Repository: https://github.com/YOUR_ORG/YOUR_REPO
-# ------------------------------------------------------------------------------
-#
-# deployctl/lib/mod_docker.sh — Image build, network, and container lifecycle.
+#!/bin/bash
 
+#
+# ------------------------------------------------------------------------------
+# project: deployctl-inboxctl: deployctl
+# SPDX-License-Identifier: MIT (see LICENSE)
+# Maintainer: Naouali Houssam <houssamnaouali04@gmail.com>
+# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# ------------------------------------------------------------------------------
+#
+# deployctl/lib/mod_docker.sh - Docker management
+# manages Docker images build and run containers for deployctl projects
+#
+# requires: shared/constants.sh 
 # shellcheck shell=bash
+
+# IMPORTANT: i suposed that the app config contains REPO_NAME
+
+# this script will take one parameter is the APP_NAME
 
 # -----------------------------------------------------------------------------
 # deployctl_docker_ensure_network

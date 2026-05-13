@@ -7,317 +7,281 @@
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
 # ------------------------------------------------------------------------------
 #
-# inboxctl/inboxctl.sh - local-side CLI entrypoint for deployment log collection.
-# sources shared contracts and modular libraries; dispatches subcommands
+# inboxctl/inboxctl.sh — Local CLI to inspect remote deployctl state over SSH (read-only).
+#
+# Further reading (exam / study index):
+#   Bash strict mode (-e -u pipefail): http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck (sourcing): https://www.shellcheck.net/wiki/
 
-# shellcheck shell=bash
-
-set -euo pipefail
- 
 # =============================================================================
-# Path resolution
-# resolves SCRIPT_DIR (inboxctl/), REPO_ROOT (project root), SHARED (shared/)
+# Strict mode — same family as deployctl; see article for pitfalls (e.g. pipelines).
+# Study: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+# =============================================================================
+set -euo pipefail
+
+# =============================================================================
+# Paths: script dir, shared contracts, optional INBOX_SHARED_ROOT override.
+# Study: https://mywiki.wooledge.org/BashFAQ/028
 # =============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SHARED="${REPO_ROOT}/shared"
-LIB="${SCRIPT_DIR}/lib"
- 
+SHARED="${INBOX_SHARED_ROOT:-${REPO_ROOT}/shared}"
+
+# Study: https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
+if [[ ! -f "${SHARED}/constants.sh" ]]; then
+    SHARED="${SCRIPT_DIR}/../shared"
+fi
+
 # =============================================================================
-# Source shared contracts (order matters)
+# Shared + inbox modules (sourced into this shell).
+# Study: https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html#index-source
 # =============================================================================
-# shellcheck source=../shared/constants.sh
+# shellcheck source=/dev/null
 source "${SHARED}/constants.sh"
- 
-# shellcheck source=../shared/format.sh
+# shellcheck source=/dev/null
 source "${SHARED}/format.sh"
- 
-# shellcheck source=../shared/validators.sh
+# shellcheck source=/dev/null
 source "${SHARED}/validators.sh"
- 
+
 # =============================================================================
-# Source inboxctl modules
+# Feature modules (SSH, cache, fetch, UI, …).
+# Study: https://mywiki.wooledge.org/BashGuide/CompoundCommands#Loops
 # =============================================================================
-# shellcheck source=lib/mod_server.sh
-source "${LIB}/mod_server.sh"
- 
-# shellcheck source=lib/mod_ssh.sh
-source "${LIB}/mod_ssh.sh"
- 
-# shellcheck source=lib/mod_fetch.sh
-source "${LIB}/mod_fetch.sh"
- 
-# shellcheck source=lib/mod_parse.sh
-source "${LIB}/mod_parse.sh"
- 
-# shellcheck source=lib/mod_cache.sh
-source "${LIB}/mod_cache.sh"
- 
-# shellcheck source=lib/mod_watch.sh
-source "${LIB}/mod_watch.sh"
- 
-# shellcheck source=lib/mod_ui.sh
-source "${LIB}/mod_ui.sh"
- 
-# shellcheck source=lib/mod_cli.sh
-source "${LIB}/mod_cli.sh"
- 
-# =============================================================================
-# Usage / help
-# =============================================================================
-_usage() {
-    cat <<EOF
-NAME
-    inboxctl - local-side log collector for deployctl
- 
-SYNOPSIS
-    inboxctl [OPTIONS] <subcommand> [args...]
- 
-DESCRIPTION
-    inboxctl connects to a remote server running deployctl over SSH,
-    fetches deployment logs, classifies and archives them locally.
- 
-OPTIONS
-    -h          Show this help message
-    -f          Run subcommand in a forked subprocess
-    -t          Run subcommand using background threads
-    -s          Run subcommand in an isolated subshell
-    -l <dir>    Use custom log directory (default: ${INBOXCTL_CONFIG_DIR})
-    -r          Restore cached logs to default location (admin only)
-    -v          Verbose mode
- 
-SUBCOMMANDS
-    server add <name> <host> <user> [port] [key] [remote_log]
-                        Add a new server profile
-    server remove <name>
-                        Remove a server profile
-    server list         List all registered servers
-    server show <name>  Show details of a server profile
-    server update <name> <key> <value>
-                        Update a key in a server profile
- 
-    fetch <name>        Fetch latest logs from server (incremental)
-    fetch full <name>   Fetch full log from server
-    fetch status <name> Show fetch state for a server
-    fetch reset <name>  Reset fetch state (forces full re-fetch)
- 
-    watch <name>        Stream live logs from server (Ctrl+C to stop)
- 
-    test <name>         Test SSH connection to a server
- 
-CODES DE RETOUR
-    0    Success
-    100  Unknown option
-    101  Missing parameter
-    113  SSH connection failed
-    114  Config parse error
-    116  Missing dependency
- 
-EXAMPLES
-    inboxctl server add prod 192.168.1.10 root
-    inboxctl test prod
-    inboxctl fetch prod
-    inboxctl -f fetch full prod
-    inboxctl watch prod
- 
-LOGS
-    ${INBOXCTL_CONFIG_DIR}
- 
-AUTHOR
-    ENSET Mohammedia --- 2026
-EOF
-}
- 
-# =============================================================================
-# Option parsing
-# =============================================================================
-OPT_FORK=false
-OPT_THREAD=false
-OPT_SUBSHELL=false
-OPT_VERBOSE=false
-OPT_RESTORE=false
-CUSTOM_LOG_DIR=""
- 
-while getopts ":hftsvrl:" opt; do
-    case "${opt}" in
-        h) _usage; exit 0 ;;
-        f) OPT_FORK=true ;;
-        t) OPT_THREAD=true ;;
-        s) OPT_SUBSHELL=true ;;
-        v) OPT_VERBOSE=true ;;
-        r) OPT_RESTORE=true ;;
-        l) CUSTOM_LOG_DIR="${OPTARG}" ;;
-        :)
-            printf 'ERROR: option -%s requires an argument\n' \
-                "${OPTARG}" >&2
-            _usage
-            exit "${ERR_MISSING_PARAM}"
-            ;;
-        ?)
-            printf 'ERROR: unknown option: -%s\n' "${OPTARG}" >&2
-            _usage
-            exit "${ERR_UNKNOWN_OPTION}"
-            ;;
-    esac
+INBOX_LIB="${SCRIPT_DIR}/lib"
+for _mod in mod_server.sh mod_ssh.sh mod_cache.sh mod_fetch.sh mod_parse.sh mod_ui.sh mod_watch.sh mod_cli.sh; do
+    # shellcheck source=/dev/null
+    source "${INBOX_LIB}/${_mod}"
 done
-shift $((OPTIND - 1))
- 
-# override log dir if provided
-if [[ -n "${CUSTOM_LOG_DIR}" ]]; then
-    INBOXCTL_CONFIG_DIR="${CUSTOM_LOG_DIR}"
-fi
- 
-# handle restore immediately after option parsing (requires root)
-if [[ "${OPT_RESTORE}" == true ]]; then
-    require_root || {
-        printf 'ERROR: -r requires root privileges\n' >&2
-        exit "${ERR_NOT_ROOT}"
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_add_server
+# Args: name, user@host
+# Study: https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html#index-_003a_003f-
+# -----------------------------------------------------------------------------
+inboxctl_cmd_add_server() {
+    local name="${1:?}"
+    local target="${2:?}"
+    validate_app_name "$name" || {
+        printf 'inboxctl: invalid server name (use kebab-case like app names)\n' >&2
+        exit "$ERR_INVALID_APP_NAME"
     }
-    fetch_reset "${1:?server name required for restore}"
-    exit $?
-fi
- 
-# export verbose flag so modules can check it
-export INBOXCTL_VERBOSE="${OPT_VERBOSE}"
- 
-# =============================================================================
-# Subcommand dispatcher
-# =============================================================================
- 
-# require at least one subcommand
-if [[ $# -lt 1 ]]; then
-    printf 'ERROR: subcommand required\n' >&2
-    _usage
-    exit "${ERR_MISSING_PARAM}"
-fi
- 
-SUBCOMMAND="${1}"
-shift
- 
+    inboxctl_write_server_conf "$name" "$target"
+    printf 'inboxctl: added server %s → %s\n' "$name" "$target"
+    return 0
+}
+
 # -----------------------------------------------------------------------------
-# _dispatch
-# runs the actual subcommand logic;
-# called directly or wrapped in fork/thread/subshell depending on options
+# inboxctl_cmd_remove_server
+# Study: https://www.gnu.org/software/bash/manual/html_node/Command-Substitution.html ($( ) for paths)
 # -----------------------------------------------------------------------------
-_dispatch() {
-    case "${SUBCOMMAND}" in
- 
-        # --- server management ---
-        server)
-            local action="${1:-}"
+inboxctl_cmd_remove_server() {
+    local name="${1:?}"
+    inboxctl_remove_server_conf "$name"
+    rm -rf "$(inboxctl_cache_root_for_server "$name")"
+    printf 'inboxctl: removed server %s\n' "$name"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_list_servers
+# Study: delegation — thin wrapper calling library (single responsibility).
+# -----------------------------------------------------------------------------
+inboxctl_cmd_list_servers() {
+    inboxctl_list_server_names
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_show_servers
+# Study: https://www.gnu.org/software/bash/manual/html_node/The-Shopt-Builtin.html (nullglob)
+# -----------------------------------------------------------------------------
+inboxctl_cmd_show_servers() {
+    shopt -s nullglob
+    local p
+    for p in "${INBOXCTL_SERVERS_DIR}"/*.conf; do
+        printf ' --- %s ---\n ' "$(basename "${p%.conf}")"
+        cat "$p"
+        printf '\n'
+    done
+    shopt -u nullglob
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_test
+# Study: https://man.openbsd.org/ssh.1 (BatchMode); exit status as contract (ERR_SSH_FAILED)
+# -----------------------------------------------------------------------------
+inboxctl_cmd_test() {
+    local name="${1:?}"
+    if inboxctl_ssh_test_connection "$name"; then
+        printf 'inboxctl: SSH OK for %s\n' "$name"
+        return 0
+    fi
+    printf 'inboxctl: SSH failed for %s\n' "$name" >&2
+    exit "$ERR_SSH_FAILED"
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_fetch
+# Study: scp over SSH — https://man.openbsd.org/scp.1
+# -----------------------------------------------------------------------------
+inboxctl_cmd_fetch() {
+    local name="${1:?}"
+    inboxctl_fetch_server_data "$name"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_show_projects
+# Study: cache-as-source-of-truth; https://mywiki.wooledge.org/BashGuide/TestsAndConditionals
+# -----------------------------------------------------------------------------
+inboxctl_cmd_show_projects() {
+    local name="${1:?}"
+    local cache
+    cache="$(inboxctl_cache_root_for_server "$name")"
+    if [[ ! -d "$cache/projects.d" ]]; then
+        printf 'inboxctl: no cache; run: inboxctl fetch %s\n' "$name" >&2
+        exit "$ERR_MISSING_PARAM"
+    fi
+    inboxctl_ui_print_projects_table "$cache"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_show_bucket
+# Study: reuse UI filter by STATUS_* constants from shared/constants.sh
+# -----------------------------------------------------------------------------
+inboxctl_cmd_show_bucket() {
+    local bucket="$1"
+    local name="$2"
+    local cache
+    cache="$(inboxctl_cache_root_for_server "$name")"
+    inboxctl_ui_filter_status "$cache" "$bucket"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_logs
+# Study: POSIX tail — https://pubs.opengroup.org/onlinepubs/9699919799/utilities/tail.html
+# -----------------------------------------------------------------------------
+inboxctl_cmd_logs() {
+    local name="${1:?}"
+    local app="${2:?}"
+    local cache f
+    cache="$(inboxctl_cache_root_for_server "$name")"
+    f="${cache}/logs/projects/${app}.log"
+    if [[ ! -f "$f" ]]; then
+        printf 'inboxctl: log not cached for %s — run fetch\n' "$app" >&2
+        exit "$ERR_MISSING_PARAM"
+    fi
+    tail -n 80 "$f"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_errors
+# Study: https://www.gnu.org/software/bash/manual/html_node/Lists.html (cmd1 || cmd2 if first fails)
+# -----------------------------------------------------------------------------
+inboxctl_cmd_errors() {
+    local name="${1:?}"
+    local cache h
+    cache="$(inboxctl_cache_root_for_server "$name")"
+    h="${cache}/history.log"
+    if [[ ! -f "$h" ]]; then
+        printf 'inboxctl: no history cached — run fetch\n' >&2
+        exit "$ERR_MISSING_PARAM"
+    fi
+    grep ' : ERROR : ' "$h" || printf '(no ERROR lines)\n'
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_cmd_watch
+# Study: https://www.gnu.org/software/bash/manual/html_node/Looping-Constructs.html (while)
+# -----------------------------------------------------------------------------
+inboxctl_cmd_watch() {
+    local name="${1:?}"
+    inboxctl_watch_server "$name"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# inboxctl_dispatch
+# Nested case for `show` subcommands — common CLI pattern.
+# Study: https://www.gnu.org/software/bash/manual/html_node/Compound-Commands.html#index-case
+# -----------------------------------------------------------------------------
+inboxctl_dispatch() {
+    local cmd="${1:-help}"
+    shift || true
+    case "$cmd" in
+        add-server)
+            inboxctl_cmd_add_server "${1:-}" "${2:-}"
+            ;;
+        remove-server)
+            inboxctl_cmd_remove_server "${1:-}"
+            ;;
+        list)
+            [[ "${1:-}" == "servers" ]] || {
+                printf 'inboxctl: use: list servers\n' >&2
+                exit "$ERR_MISSING_PARAM"
+            }
+            inboxctl_cmd_list_servers
+            ;;
+        show)
+            local sub="${1:-}"
             shift || true
-            case "${action}" in
-                add)    server_add    "$@" ;;
-                remove) server_remove "$@" ;;
-                list)   server_list        ;;
-                show)   server_show   "$@" ;;
-                update) server_update "$@" ;;
+            case "$sub" in
+                servers) inboxctl_cmd_show_servers ;;
+                projects) inboxctl_cmd_show_projects "${1:-}" ;;
+                live) inboxctl_cmd_show_bucket "$STATUS_LIVE" "${1:-}" ;;
+                pending) inboxctl_cmd_show_bucket "$STATUS_PENDING" "${1:-}" ;;
+                archive) inboxctl_cmd_show_bucket "$STATUS_ARCHIVE" "${1:-}" ;;
                 *)
-                    printf 'ERROR: unknown server action: %s\n' \
-                        "${action}" >&2
-                    _usage
-                    exit "${ERR_UNKNOWN_OPTION}"
+                    printf 'inboxctl: unknown show target\n' >&2
+                    exit "$ERR_UNKNOWN_OPTION"
                     ;;
             esac
             ;;
- 
-        # --- log fetching ---
-        fetch)
-            local mode="${1:-}"
-            case "${mode}" in
-                full)
-                    shift
-                    fetch_full "${1:?server name required}"
-                    ;;
-                status)
-                    shift
-                    fetch_status "${1:?server name required}"
-                    ;;
-                reset)
-                    shift
-                    fetch_reset "${1:?server name required}"
-                    ;;
-                *)
-                    # default: incremental fetch
-                    if [[ -z "${mode}" ]]; then
-                        printf 'ERROR: server name required\n' >&2
-                        _usage
-                        exit "${ERR_MISSING_PARAM}"
-                    fi
-                    fetch_incremental "${mode}"
-                    ;;
-            esac
-            ;;
- 
-        # --- live streaming ---
-        watch)
-            local server_name="${1:?server name required}"
-            server_load "${server_name}"
-            ssh_stream "${server_name}" "${2:-20}"
-            ;;
- 
-        # --- connection test ---
         test)
-            local server_name="${1:?server name required}"
-            server_load "${server_name}"
-            ssh_test
-            ssh_check_remote_log
+            inboxctl_cmd_test "${1:-}"
             ;;
- 
-        # --- unknown subcommand ---
+        fetch)
+            inboxctl_cmd_fetch "${1:-}"
+            ;;
+        logs)
+            inboxctl_cmd_logs "${1:-}" "${2:-}"
+            ;;
+        errors)
+            inboxctl_cmd_errors "${1:-}"
+            ;;
+        watch)
+            inboxctl_cmd_watch "${1:-}"
+            ;;
+        version)
+            printf 'inboxctl %s\n' "$DEPLOYCTL_INBOXCTL_VERSION"
+            ;;
+        help | --help | -h)
+            inboxctl_print_usage
+            ;;
         *)
-            printf 'ERROR: unknown subcommand: %s\n' "${SUBCOMMAND}" >&2
-            _usage
-            exit "${ERR_UNKNOWN_OPTION}"
+            inboxctl_print_usage
+            exit "$ERR_UNKNOWN_OPTION"
             ;;
     esac
 }
- 
-# =============================================================================
-# Execution mode — fork / thread / subshell / direct
-# =============================================================================
-if [[ "${OPT_FORK}" == true ]]; then
-    # run in a forked subprocess; parent waits for child
-    (
-        _dispatch "$@"
-    ) &
-    FORK_PID=$!
-    printf '[inboxctl] fork started (PID: %s)\n' "${FORK_PID}"
-    wait "${FORK_PID}"
-    FORK_STATUS=$?
-    if [[ ${FORK_STATUS} -ne 0 ]]; then
-        printf '[inboxctl] fork failed (PID: %s, code: %s)\n' \
-            "${FORK_PID}" "${FORK_STATUS}" >&2
-        exit "${FORK_STATUS}"
-    fi
-    printf '[inboxctl] fork completed (PID: %s)\n' "${FORK_PID}"
- 
-elif [[ "${OPT_THREAD}" == true ]]; then
-    # run as background job; simulate thread with &
-    _dispatch "$@" &
-    THREAD_PID=$!
-    printf '[inboxctl] thread started (PID: %s)\n' "${THREAD_PID}"
-    wait "${THREAD_PID}"
-    THREAD_STATUS=$?
-    if [[ ${THREAD_STATUS} -ne 0 ]]; then
-        printf '[inboxctl] thread failed (PID: %s, code: %s)\n' \
-            "${THREAD_PID}" "${THREAD_STATUS}" >&2
-        exit "${THREAD_STATUS}"
-    fi
-    printf '[inboxctl] thread completed (PID: %s)\n' "${THREAD_PID}"
- 
-elif [[ "${OPT_SUBSHELL}" == true ]]; then
-    # run in an isolated subshell; env changes stay local
-    (
-        export SUBSHELL_CONTEXT=true
-        printf '[inboxctl] subshell started (PID: %s, PPID: %s)\n' "$$" "${PPID}"
-        _dispatch "$@"
-    )
-    SUBSHELL_STATUS=$?
-    printf '[inboxctl] subshell exited (code: %s)\n' "${SUBSHELL_STATUS}"
-    exit "${SUBSHELL_STATUS}"
- 
-else
-    # default: direct execution in current shell
-    _dispatch "$@"
-fi
+
+# -----------------------------------------------------------------------------
+# main
+# Study: https://www.gnu.org/software/bash/manual/html_node/Set-Builtin.html (set --); Bash arrays
+# -----------------------------------------------------------------------------
+main() {
+    inboxctl_ensure_config_dirs
+    mkdir -p "${INBOXCTL_CACHE_DIR}" "${INBOXCTL_SERVER_CACHE_DIR}"
+    inboxctl_parse_globals "$@"
+    set -- "${INBOXCTL_ARGS[@]}"
+    inboxctl_dispatch "$@"
+}
+
+main "$@"

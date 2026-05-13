@@ -43,7 +43,11 @@ deployctl_health_check_app() {
         log_project_info "$app" "health: port ${port} listening (HTTP /health not OK)"
         return 0
     fi
-  
+    if ss -ltn 2>/dev/null | grep -q ":${port}$"; then
+        log_project_info "$app" "health: port ${port} listening (HTTP /health not OK)"
+        return 0
+    fi
+
     log_project_error "$app" "health check failed for port ${port}"
     return 1
 }

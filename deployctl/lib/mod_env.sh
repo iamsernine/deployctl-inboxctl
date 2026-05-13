@@ -25,14 +25,11 @@
 # Returns: 0 on success
 # Study: https://www.gnu.org/software/bash/manual/html_node/Bash-Builtins.html#index-read
 # -----------------------------------------------------------------------------
-
-
-#NOTICE : this version does not backup the old env in case of failure
 deployctl_collect_env_from_example() {
     local app="$1"
     local repo="$2"
     local example="${repo}/.env.example"
-    local env_file="${DEPLOYCTL_ENV_DIR}/${app}.env" # TODO : we will use app_tmp.env later for cleaninn up and roll back on failure cases to not lost the env file of the old deployed app
+    local env_file="${DEPLOYCTL_ENV_DIR}/${app}.env"
 
     if [[ "${DEPLOYCTL_DRY_RUN:-0}" == "1" ]]; then
         log_project_info "$app" "[dry-run] would create env from ${example}"
@@ -44,7 +41,7 @@ deployctl_collect_env_from_example() {
     fi
 
     mkdir -p "$DEPLOYCTL_ENV_DIR"
-    : >"$env_file" 
+    : >"$env_file"
     local line key val default
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" =~ ^[[:space:]]*# ]] && continue

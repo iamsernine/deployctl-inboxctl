@@ -7,57 +7,91 @@
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
 # ------------------------------------------------------------------------------
 #
-# inboxctl/lib/mod_cli.sh - command line interface layer
-# handles user arguments parsing and usage display
-#
-# requires: shared/constants.sh shared/format.sh
-# shellcheck shell=bash
+# inboxctl/lib/mod_cli.sh — Global options, usage, and version display for inboxctl.
 
-# =============================================================================
-# Public API
-# =============================================================================
+# shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
+
+INBOXCTL_VERBOSE=0
 
 # -----------------------------------------------------------------------------
 # inboxctl_print_usage
-# displays CLI usage instructions
-#
-# Returns: 0 always
+# Prints help text matching implemented subcommands.
+# Returns: 0
+# Study: here-doc for static help text
 # -----------------------------------------------------------------------------
 inboxctl_print_usage() {
-    printf 'inboxctl (version %s)\n' "$DEPLOYCTL_INBOXCTL_VERSION"
-    printf '\nUsage:\n'
-    printf '  inboxctl show projects <server>\n'
-    printf '  inboxctl logs\n'
-    printf '  inboxctl errors\n'
-    printf '  inboxctl watch <server>\n'
-    printf '\nOptions:\n'
-    printf '  --help        Show this help message\n'
-    printf '  --version     Show version\n'
+    cat <<'EOF'
+inboxctl — read-only remote deployctl inspector (local workstation)
+
+Usage:
+  inboxctl [global-options] <command> [arguments]
+
+Global options:
+  -h, --help      Show help
+  -v, --verbose   Verbose SSH/scp diagnostics
+
+Commands:
+  add-server <name> <user@host>
+  remove-server <name>
+  list servers
+  show servers
+  test <name>
+  fetch <name>
+  show projects <name>
+  show live <name>
+  show pending <name>
+  show archive <name>
+  logs <server> <app>
+  errors <name>
+  watch <name>
+  version
+  help
+EOF
+    return 0
 }
 
 # -----------------------------------------------------------------------------
 # inboxctl_parse_globals
-# parses global CLI options and stores remaining args into ARGS
-#
-# Args: all CLI arguments
+# Parses -v/--verbose; leaves remaining args in INBOXCTL_ARGS array.
+# Returns: 0
+# Study: argv parsing with case and shift (same idea as deployctl globals)
 # -----------------------------------------------------------------------------
 inboxctl_parse_globals() {
-    ARGS=()
-
+    INBOXCTL_ARGS=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --help|-h)
+            -h | --help)
                 inboxctl_print_usage
                 exit 0
                 ;;
-            --version|-v)
-                printf 'inboxctl version %s\n' "$DEPLOYCTL_INBOXCTL_VERSION"
-                exit 0
+            -v | --verbose)
+                INBOXCTL_VERBOSE=1
+                shift
+                ;;
+            --)
+                shift
+                while [[ $# -gt 0 ]]; do
+                    INBOXCTL_ARGS+=("$1")
+                    shift
+                done
+                return 0
+                ;;
+            -*)
+                printf 'inboxctl: unknown option %s\n' "$1" >&2
+                exit "$ERR_UNKNOWN_OPTION"
                 ;;
             *)
-                ARGS+=("$1")
+                INBOXCTL_ARGS+=("$@")
+                return 0
                 ;;
         esac
-        shift
     done
+    return 0
 }

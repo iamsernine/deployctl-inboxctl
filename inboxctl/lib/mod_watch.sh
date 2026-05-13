@@ -7,85 +7,34 @@
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
 # ------------------------------------------------------------------------------
 #
-# inboxctl/lib/mod_watch.sh - live monitoring mode
-# continuously refreshes project display for a given server
-#
-# This module:
-#   - validates server input (validators.sh)
-#   - uses shared constants (constants.sh)
-#   - displays live projects using UI pipeline (mod_ui.sh)
-#
-# requires:
-#   shared/constants.sh
-#   shared/validators.sh
-#   shared/format.sh
-#   inboxctl_cmd_show_projects (from inboxctl.sh)
-#
-# shellcheck shell=bash
+# inboxctl/lib/mod_watch.sh — Periodic refresh of fetched deployctl snapshot (read-only).
 
-# =============================================================================
-# Public API
-# =============================================================================
+# shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
 # -----------------------------------------------------------------------------
 # inboxctl_watch_server
-# Live monitoring mode for a server
-#
-# Description:
-#   Continuously refreshes the project list every 2 seconds.
-#   Uses the existing show-projects pipeline to avoid code duplication.
-#
-# Args:
-#   $1 = server name
-#
-# Behavior:
-#   - validates server name
-#   - checks cache directory existence
-#   - loops indefinitely and refreshes UI
-#
-# Returns:
-#   0 on success
-#   ERR_INVALID_APP_NAME if server name is invalid
-#   ERR_MISSING_PARAM if cache directory not found
+# Refetches every 3 seconds by default and redraws project table.
+# Args: $1=server name, optional $2=interval seconds
+# Returns: 0 when interrupted (SIGINT)
+# Study: terminal escape sequences (clear/redraw)
 # -----------------------------------------------------------------------------
 inboxctl_watch_server() {
-    local server="${1:?server name required}"
-
-    # -------------------------
-    # Validate server name
-    # -------------------------
-    validate_app_name "$server" || {
-        format_log_entry "ERROR" "invalid server name: $server"
-        return $ERR_INVALID_APP_NAME
-    }
-
-    # -------------------------
-    # Locate cache directory
-    # -------------------------
-    local dir="${INBOXCTL_SERVER_CACHE_DIR}/${server}"
-
-    # -------------------------
-    # Validate cache existence
-    # -------------------------
-    validate_dir_exists "$dir" || {
-        format_log_entry "ERROR" "server cache not found: $server"
-        return $ERR_MISSING_PARAM
-    }
-
-    # -------------------------
-    # Live monitoring loop
-    # -------------------------
+    local name="$1"
+    local interval="${2:-3}"
+    printf 'Watching %s (every %ss). Ctrl+C to stop.\n' "$name" "$interval"
     while true; do
-        clear
-
-        # Header
-        echo "SERVER: $server"
-        echo "-------------------"
-
-        # Reuse existing show pipeline
-        inboxctl_cmd_show_projects "$server" "" "name"
-
-        # refresh interval
-        sleep 2
+        inboxctl_fetch_server_data "$name" || true
+        local cache
+        cache="$(inboxctl_cache_root_for_server "$name")"
+        printf '\033[2J\033[H'
+        inboxctl_ui_print_projects_table "$cache"
+        sleep "$interval"
     done
 }

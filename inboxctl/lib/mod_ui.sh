@@ -7,88 +7,62 @@
 # Repository: https://github.com/iamsernine/deployctl-inboxctl
 # ------------------------------------------------------------------------------
 #
-# inboxctl/lib/mod_ui.sh - UI rendering layer
-# responsible for formatting, filtering and displaying project data
-# used by: show_projects, watch mode
-#
-# requires: shared/constants.sh shared/format.sh
+# inboxctl/lib/mod_ui.sh — Simple fixed-width terminal tables for project listings.
+
 # shellcheck shell=bash
-
-# =============================================================================
-# Internal helpers
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# color_status
-# applies simple ANSI colors based on STATUS_* constants
 #
-# Args: $1=status
-# Returns: 0; prints colored status
-# -----------------------------------------------------------------------------
-
-color_status() {
-    case "$1" in
-        "$STATUS_LIVE")    printf '\033[32m%s\033[0m' "$1" ;;
-        "$STATUS_ERROR")   printf '\033[31m%s\033[0m' "$1" ;;
-        "$STATUS_PENDING") printf '\033[33m%s\033[0m' "$1" ;;
-        "$STATUS_ARCHIVE") printf '\033[34m%s\033[0m' "$1" ;;
-        *) printf '%s' "$1" ;;
-    esac
-}
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
 # -----------------------------------------------------------------------------
 # inboxctl_ui_print_projects_header
-# Affiche l'en-tête du tableau des projets
-# Utilise print_table_line (format.sh) pour garder un format uniforme
+# Prints column headers per README example.
+# Returns: 0
+# Study: print_table_line helper from shared/format.sh
 # -----------------------------------------------------------------------------
-
 inboxctl_ui_print_projects_header() {
-    print_table_line "NAME" "DOMAIN" "PORT" "STATUS"
-    printf '%s\n' "--------------------------------------------"
+    print_table_line "PROJECT" "STATUS" "PORT" "DOMAIN" "CONTAINER" "LAST_DEPLOY"
+    return 0
 }
 
 # -----------------------------------------------------------------------------
 # inboxctl_ui_print_projects_table
-# Affiche la liste des projets ligne par ligne
-# Chaque ligne est reçue sous forme : name|domain|port|status
+# Args: $1=server cache root
+# Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Process-Substitution.html
 # -----------------------------------------------------------------------------
-
 inboxctl_ui_print_projects_table() {
-    while IFS="|" read -r name domain port status || [[ -n "$name" ]]; do
-        status="$(color_status "$status")"
-        print_table_line "$name" "$domain" "$port" "$status"
-    done
+    local cache="$1"
+    inboxctl_ui_print_projects_header
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        IFS=$'\t' read -r app st port dom cont last <<<"$line"
+        print_table_line "${app}" "${st}" "${port}" "${dom}" "${cont}" "${last}"
+    done < <(inboxctl_collect_projects_from_cache "$cache")
+    return 0
 }
 
 # -----------------------------------------------------------------------------
 # inboxctl_ui_filter_status
-# Filtre les projets selon leur statut
-# Si filter est vide → affiche tout
+# Args: $1=cache root, $2=status (live|pending|archive)
+# Returns: 0
+# Study: process substitution + filter rows
 # -----------------------------------------------------------------------------
-
 inboxctl_ui_filter_status() {
-    local filter="$1"
-
-    while IFS="|" read -r name domain port status; do
-        if [[ -z "$filter" || "$status" == "$filter" ]]; then
-            printf '%s|%s|%s|%s\n' "$name" "$domain" "$port" "$status"
-        fi
-    done
-}
-
-# -----------------------------------------------------------------------------
-# inboxctl_ui_sort
-# Trie les projets selon un critère
-# name   → tri par nom
-# port   → tri numérique par port
-# status → tri par statut
-# -----------------------------------------------------------------------------
-
-inboxctl_ui_sort() {
-    case "$1" in
-        name) sort -t"|" -k1 ;;
-        port) sort -t"|" -k3 -n ;;
-        status) sort -t"|" -k4 ;;
-        *) cat ;;
-    esac
+    local cache="$1"
+    local want="$2"
+    inboxctl_ui_print_projects_header
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        IFS=$'\t' read -r app st port dom cont last <<<"$line"
+        [[ "$st" == "$want" ]] || continue
+        print_table_line "${app}" "${st}" "${port}" "${dom}" "${cont}" "${last}"
+    done < <(inboxctl_collect_projects_from_cache "$cache")
+    return 0
 }
