@@ -115,36 +115,51 @@ deployctl_parse_global_options() {
 # -----------------------------------------------------------------------------
 deployctl_print_usage() {
     cat <<'EOF'
-deployctl — Docker monolith deploy helper (server-side)
+deployctl - server-side deployment helper for containerized applications
 
 Usage:
   deployctl [global-options] <command> [arguments]
+
+Typical workflow:
+  1. deployctl check
+  2. deployctl deploy <app> --repo <url> --domain <domain> --port <port> --ssl no
+  3. deployctl status <app>
+  4. deployctl logs <app>
 
 Global options:
   -h, --help           Show this help
   -v, --verbose        Verbose logging to stderr
   -n, --dry-run        Simulate steps without changing system (best-effort)
-  -l, --log-dir DIR    Override log directory (testing)
-  -f, --fork           Hint: run heavy steps in forked context (demo/tests)
-  -t, --thread         Hint: threaded execution mode flag (reserved)
-  -s, --subshell       Hint: run deploy body in subshell (demo/tests)
-  -r, --restore-mode   Restrict certain destructive ops (root checks)
+  -l, --log-dir DIR    Write history.log and project logs under DIR
+  -f, --fork           Run deploy in a background child process, then wait
+  -t, --thread         Enable thread-like mode flag (currently reserved)
+  -s, --subshell       Run deploy body in a Bash subshell
+  -r, --restore-mode   Require admin privileges for protected operations
 
 Commands:
   check                          Verify dependencies and directories
-  deploy [app] [--repo URL] [--domain D] [--port P] [--ssl yes|no]
-  status <app>
-  logs <app>
-  archive <app>
-  restore <app>
-  list <live|pending|archive>
-  ssl <app>
+  deploy [app] --repo URL --domain DOMAIN --port PORT --ssl yes|no
+                                 Clone, build, run, health-check, proxy, and record metadata
+  status <app>                   Show stored status, domain, and port
+  logs <app>                     Show last project log lines
+  archive <app>                  Move a live app to archive state
+  restore <app>                  Rebuild and run an app from stored metadata
+  list <live|pending|archive>    List apps by lifecycle directory
+  ssl <app>                      Request/refresh TLS with certbot when available
   menu                           Interactive menu
   version                        Show version
+  errors-help                    Show deployctl numeric error codes
 
 Examples:
   deployctl check
+  deployctl -n -l /tmp/deployctl-demo check
   deployctl deploy my-app --repo https://example.git --domain app.example.com --port 8080 --ssl no
+  deployctl -s deploy my-app --repo https://example.git --domain app.example.com --port 8080 --ssl no
+  deployctl -f deploy my-app --repo https://example.git --domain app.example.com --port 8080 --ssl no
+
+Logs:
+  Default history log: /var/log/deployctl/history.log
+  Project logs:        /var/log/deployctl/projects/<app>.log
 EOF
     return 0
 }
