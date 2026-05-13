@@ -107,6 +107,44 @@ deployctl_restore_app() {
 }
 
 # -----------------------------------------------------------------------------
+# deployctl_restore_defaults
+# Resets deployctl defaults and clears temporary state/cache. Requires root.
+# Returns: 0 on success
+# -----------------------------------------------------------------------------
+deployctl_restore_defaults() {
+    require_root || exit_with_error "$ERR_NOT_ROOT" "l'option -r (restore defaults) necessite les privileges root"
+
+    log_info "[restore-defaults] reinitialisation des parametres par defaut"
+
+    DEPLOYCTL_LOG_DIR_OVERRIDE=""
+    DEPLOYCTL_VERBOSE=0
+    DEPLOYCTL_DRY_RUN=0
+    DEPLOYCTL_FORK_MODE=0
+    DEPLOYCTL_THREAD_MODE=0
+    DEPLOYCTL_SUBSHELL_MODE=0
+
+    deployctl_ensure_layout || exit_with_error "$ERR_FILE_PERMISSION_ERROR" "cannot recreate deployctl layout"
+
+    chmod 755 "$DEPLOYCTL_ETC" "$DEPLOYCTL_VAR" "$DEPLOYCTL_LOG_DIR" 2>/dev/null || true
+    chmod 700 "$DEPLOYCTL_ENV_DIR" 2>/dev/null || true
+
+    if [[ -d "$DEPLOYCTL_STATE_DIR" ]]; then
+        rm -f "${DEPLOYCTL_STATE_DIR}"/*.state 2>/dev/null || true
+        log_info "[restore-defaults] fichiers d'etat supprimes"
+    fi
+
+    if [[ -d "$DEPLOYCTL_CACHE_DIR" ]]; then
+        rm -rf "${DEPLOYCTL_CACHE_DIR:?}"/* 2>/dev/null || true
+        log_info "[restore-defaults] cache vide"
+    fi
+
+    log_info "[restore-defaults] repertoire de log par defaut: ${DEPLOYCTL_LOG_DIR}"
+    log_info "[restore-defaults] reinitialisation terminee"
+    printf '%s\n' "Parametres par defaut restaures avec succes."
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # deployctl_run_certbot_optional
 # Attempts certbot when present; logs SSL_FAILED-level message but returns 1 only if strict needed.
 # Args: $1=domain, $2=app

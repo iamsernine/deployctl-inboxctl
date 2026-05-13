@@ -1,18 +1,24 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: deployctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: BEN YAMNA Mohammed <iamsernine@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
-# deployctl/lib/mod_error.sh - centralized fatal exits and deployement rollback  hooks
+# deployctl/lib/mod_error.sh — Centralized fatal exits and deployment rollback hooks.
 
-# shellcheck shell=bash 
-# read https://www.shellcheck.net/wiki/ about shellcheck
+# shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
-# rollback context (set during deploy )
+# Rollback context (set during deploy)
 DEPLOYCTL_ROLLBACK_APP=""
 DEPLOYCTL_ROLLBACK_CONTAINER=""
 DEPLOYCTL_ROLLBACK_NGINX_CONF=""
@@ -23,13 +29,14 @@ DEPLOYCTL_ROLLBACK_PENDING_DIR=""
 # Logs, prints help hint, and exits with numeric code.
 # Args: $1=ERR_* constant value, $2=message
 # Returns: does not return
+# Study: https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html#index-exit
 # -----------------------------------------------------------------------------
-exit_with_error(){
+exit_with_error() {
     local code="${1:-100}"
     local msg="${2:-unknown error}"
     log_error "$msg"
-    printf 'deployctl: error [%s]: %s \n' "$code" "$msg" >&2
-    printf 'Run: deployctl --help \n' >&2
+    printf 'deployctl: error [%s]: %s\n' "$code" "$msg" >&2
+    printf 'Run: deployctl --help\n' >&2
     exit "$code"
 }
 
@@ -37,8 +44,9 @@ exit_with_error(){
 # show_error_help
 # Prints mapping of error codes to names for operators.
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Redirections.html (here-documents)
 # -----------------------------------------------------------------------------
-show_error_help(){
+show_error_help() {
     cat <<'EOF'
 Error codes:
   100 UNKNOWN_OPTION      110 NGINX_CONFIG_FAILED
@@ -61,11 +69,13 @@ EOF
 # Best-effort rollback after partial deploy: container, pending dir, nginx snippet.
 # Uses global rollback pointers set before risky steps.
 # Returns: 0 (always attempts cleanup)
+# Study: https://mywiki.wooledge.org/BashGuide/Practices#errexit (rollback, || true)
 # -----------------------------------------------------------------------------
-cleanup_on_error(){
+cleanup_on_error() {
     local app="${DEPLOYCTL_ROLLBACK_APP:-}"
     log_error "cleanup_on_error: rolling back partial deployment for '${app:-unknown}'"
-        if [[ -n "${DEPLOYCTL_ROLLBACK_CONTAINER:-}" ]]; then
+
+    if [[ -n "${DEPLOYCTL_ROLLBACK_CONTAINER:-}" ]]; then
         docker rm -f "${DEPLOYCTL_ROLLBACK_CONTAINER}" 2>/dev/null || true
         log_error "removed container ${DEPLOYCTL_ROLLBACK_CONTAINER}"
     fi

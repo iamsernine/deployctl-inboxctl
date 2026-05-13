@@ -1,16 +1,22 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: deployctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: BEN YAMNA Mohammed <iamsernine@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
-# deployctl/lib/mod_cli.sh - global CLI flags and usage text 
+# deployctl/lib/mod_cli.sh — Global CLI flags and usage text.
 
-# shellcheck shell=bash 
-# read https://www.shellcheck.net/wiki/ about shellcheck
+# shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
 DEPLOYCTL_VERBOSE=0
 DEPLOYCTL_DRY_RUN=0
@@ -24,6 +30,7 @@ DEPLOYCTL_RESTORE_MODE=0
 # deployctl_reset_globals
 # Resets parsed CLI state (used in tests).
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Shell-Parameters.html (globals reset for tests)
 # -----------------------------------------------------------------------------
 deployctl_reset_globals() {
     DEPLOYCTL_VERBOSE=0
@@ -42,6 +49,7 @@ deployctl_reset_globals() {
 # Args: pass "$@" — outputs remaining args via stdout one per line is complex;
 #       uses nameref-style: sets global REMAINING_ARGS array.
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Arrays.html (REMAINING_ARGS+=)
 # -----------------------------------------------------------------------------
 deployctl_parse_global_options() {
     REMAINING_ARGS=()
@@ -103,10 +111,11 @@ deployctl_parse_global_options() {
 # deployctl_print_usage
 # Prints command summary.
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Redirections.html (here-documents)
 # -----------------------------------------------------------------------------
 deployctl_print_usage() {
     cat <<'EOF'
-deployctl — Docker deploy helper 
+deployctl — Docker monolith deploy helper (server-side)
 
 Usage:
   deployctl [global-options] <command> [arguments]

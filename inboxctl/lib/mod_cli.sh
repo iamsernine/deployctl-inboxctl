@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: inboxctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: MEDINOU Soukaina <soukainamedinou22@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
 # inboxctl/lib/mod_cli.sh — Global options, usage, and version display for inboxctl.
@@ -84,8 +84,7 @@ inboxctl_parse_globals() {
                 return 0
                 ;;
             -*)
-                printf 'inboxctl: unknown option %s\n' "$1" >&2
-                exit "$ERR_UNKNOWN_OPTION"
+                inboxctl_exit_with_error "$ERR_UNKNOWN_OPTION" "unknown option ${1}"
                 ;;
             *)
                 INBOXCTL_ARGS+=("$@")

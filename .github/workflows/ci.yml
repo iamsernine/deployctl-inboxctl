@@ -1,0 +1,50 @@
+# ------------------------------------------------------------------------------
+# Project: deployctl-inboxctl
+# SPDX-License-Identifier: MIT (see LICENSE)
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
+# ------------------------------------------------------------------------------
+#
+# CI: lint (bash -n + shellcheck), format contract (executable bits), required docs, tests.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Verify executable bits (format contract)
+        run: bash scripts/verify-format.sh
+
+      - name: Lint Bash (bash -n + shellcheck)
+        run: bash scripts/lint.sh
+
+      - name: Verify documentation files
+        run: bash scripts/check-docs.sh
+
+      - name: Run tests
+        run: |
+          bash deployctl/tests/test_light.sh
+          bash deployctl/tests/test_medium.sh
+          bash deployctl/tests/test_heavy.sh
+          bash inboxctl/tests/test_parse_conf.sh
+          bash inboxctl/tests/test_parse_logs.sh

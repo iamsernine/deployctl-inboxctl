@@ -1,27 +1,34 @@
-#!/usr/bin/env bash 
+#!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: deployctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: BEN YAMNA Mohammed <iamsernine@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
-# deployctl/lib/mod_log.sh - history and per-project logging with fixed format 
+# deployctl/lib/mod_log.sh — History and per-project logging with fixed format.
 
-# shellcheck shell=bash 
-# read https://www.shellcheck.net/wiki/ about shellcheck
+# shellcheck shell=bash
+#
+# Further reading (exam / study index):
+#   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
+#   Bash manual: https://www.gnu.org/software/bash/manual/html_node/
+#   BashGuide: https://mywiki.wooledge.org/BashGuide
+#   ShellCheck: https://www.shellcheck.net/wiki/
+#
 
-# globals set by deployctl main : DEPLOYCTL_VERBOSE, DEPLOYCTL_LOG_DIR_OVERRIDE
-# DEPLOYCTL_EFFECTIVE_LOG_BASE - resolved directory for history.log and projects/*.log 
+# Globals set by deployctl main: DEPLOYCTL_VERBOSE, DEPLOYCTL_LOG_DIR_OVERRIDE
+# DEPLOYCTL_EFFECTIVE_LOG_BASE — resolved directory for history.log and projects/*.log
 
 # -----------------------------------------------------------------------------
 # deployctl_log_ensure_init
 # Ensures init_logs ran so DEPLOYCTL_EFFECTIVE_LOG_BASE is set (e.g. log_error before cmd body).
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Conditional-Constructs.html (short-circuit &&)
 # -----------------------------------------------------------------------------
-deployctl_log_ensure_init(){
-    [[ -n "${DEPLOYCTL_EFFECTIVE_LOG_BASE:-}" ]] && return 0 
+deployctl_log_ensure_init() {
+    [[ -n "${DEPLOYCTL_EFFECTIVE_LOG_BASE:-}" ]] && return 0
     init_logs
 }
 
@@ -29,12 +36,13 @@ deployctl_log_ensure_init(){
 # init_logs
 # Picks a writable log root: override, then /var/log/deployctl, then ~/.cache/deployctl/logs.
 # Returns: 0 on success
+# Study: https://mywiki.wooledge.org/BashGuide/InputAndOutput (fallback writable paths)
 # -----------------------------------------------------------------------------
-init_logs(){
+init_logs() {
     local primary="${DEPLOYCTL_LOG_DIR_OVERRIDE:-$DEPLOYCTL_LOG_DIR}"
     local base="$primary"
 
-    if [[ -z "${DEPLOYCTL_LOG_DIR_OVERRIDE:-}" ]];then 
+    if [[ -z "${DEPLOYCTL_LOG_DIR_OVERRIDE:-}" ]]; then
         if ! mkdir -p "$primary" "${primary}/projects" 2>/dev/null || ! : >>"${primary}/history.log" 2>/dev/null; then
             base="${HOME:-${TMPDIR:-/tmp}}/.cache/deployctl/logs"
         fi
@@ -43,7 +51,33 @@ init_logs(){
     mkdir -p "$base" "${base}/projects" 2>/dev/null || true
     DEPLOYCTL_EFFECTIVE_LOG_BASE="$base"
     touch "${DEPLOYCTL_EFFECTIVE_LOG_BASE}/history.log" 2>/dev/null || true
-    return 0 
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# setup_output_capture
+# Duplicates stdout/stderr to the terminal and writes formatted entries to history.log.
+# Returns: 0
+# -----------------------------------------------------------------------------
+setup_output_capture() {
+    [[ "${DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE:-0}" == "1" ]] && return 0
+
+    local history_file="${DEPLOYCTL_EFFECTIVE_LOG_BASE:-${DEPLOYCTL_LOG_DIR}}/history.log"
+    [[ -f "$history_file" ]] || return 0
+
+    DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE=1
+    exec 3>&1 4>&2
+
+    exec > >(while IFS= read -r line; do
+        printf '%s\n' "$line" >&3
+        printf '%s\n' "$(format_log_entry "INFOS" "$line")" >>"$history_file"
+    done) 2> >(while IFS= read -r line; do
+        printf '%s\n' "$line" >&4
+        printf '%s\n' "$(format_log_entry "ERROR" "$line")" >>"$history_file"
+    done)
+
+    trap 'exec 1>&3 2>&4; exec 3>&- 4>&-' EXIT
+    return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -51,27 +85,32 @@ init_logs(){
 # Appends INFOS line to history log and echoes when verbose.
 # Args: $1=message
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Redirections.html (append >>)
 # -----------------------------------------------------------------------------
-log_info(){
-    deployctl_log_ensure_init 
+log_info() {
+    deployctl_log_ensure_init
     local msg="$1"
     local line
-    line="$(format_log_entry "INFOS" "$msg" )"
+    line="$(format_log_entry "INFOS" "$msg")"
     local hist="${DEPLOYCTL_EFFECTIVE_LOG_BASE}/history.log"
     mkdir -p "$(dirname "$hist")" 2>/dev/null || true
-    printf '%s\n' "$line" >>"$hist" 
-    if [[ "${DEPLOYCTL_VERBOSE:-0}" == "1" ]];then 
-        printf '%s\n' "$line" >&2
-    fi 
-    return 0 
+    printf '%s\n' "$line" >>"$hist"
+    if [[ "${DEPLOYCTL_VERBOSE:-0}" == "1" ]]; then
+        if [[ "${DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE:-0}" == "1" ]]; then
+            printf '%s\n' "$line" >&4
+        else
+            printf '%s\n' "$line" >&2
+        fi
+    fi
+    return 0
 }
-
 
 # -----------------------------------------------------------------------------
 # log_error
 # Appends ERROR line to history log; always visible on stderr.
 # Args: $1=message
 # Returns: 0
+# Study: https://www.gnu.org/software/bash/manual/html_node/Redirections.html (stderr)
 # -----------------------------------------------------------------------------
 log_error() {
     deployctl_log_ensure_init
@@ -81,7 +120,11 @@ log_error() {
     local hist="${DEPLOYCTL_EFFECTIVE_LOG_BASE}/history.log"
     mkdir -p "$(dirname "$hist")" 2>/dev/null || true
     printf '%s\n' "$line" >>"$hist"
-    printf '%s\n' "$line" >&2
+    if [[ "${DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE:-0}" == "1" ]]; then
+        printf '%s\n' "$line" >&4
+    else
+        printf '%s\n' "$line" >&2
+    fi
     return 0
 }
 
@@ -90,6 +133,7 @@ log_error() {
 # Logs to project-specific log under projects dir.
 # Args: $1=app-name, $2=message
 # Returns: 0
+# Study: same pattern as log_info; per-application log file
 # -----------------------------------------------------------------------------
 log_project_info() {
     deployctl_log_ensure_init
@@ -101,7 +145,11 @@ log_project_info() {
     mkdir -p "$(dirname "$plog")" 2>/dev/null || true
     printf '%s\n' "$line" >>"$plog"
     if [[ "${DEPLOYCTL_VERBOSE:-0}" == "1" ]]; then
-        printf '%s\n' "$line" >&2
+        if [[ "${DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE:-0}" == "1" ]]; then
+            printf '%s\n' "$line" >&4
+        else
+            printf '%s\n' "$line" >&2
+        fi
     fi
     return 0
 }
@@ -110,6 +158,7 @@ log_project_info() {
 # log_project_error
 # Args: $1=app-name, $2=message
 # Returns: 0
+# Study: same pattern as log_error; per-application log file
 # -----------------------------------------------------------------------------
 log_project_error() {
     deployctl_log_ensure_init
@@ -120,6 +169,10 @@ log_project_error() {
     plog="${DEPLOYCTL_EFFECTIVE_LOG_BASE}/projects/${app}.log"
     mkdir -p "$(dirname "$plog")" 2>/dev/null || true
     printf '%s\n' "$line" >>"$plog"
-    printf '%s\n' "$line" >&2
+    if [[ "${DEPLOYCTL_OUTPUT_CAPTURE_ACTIVE:-0}" == "1" ]]; then
+        printf '%s\n' "$line" >&4
+    else
+        printf '%s\n' "$line" >&2
+    fi
     return 0
 }

@@ -7,11 +7,11 @@
 # Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
-# inboxctl/uninstall.sh — Remove inboxctl wrapper and library tree.
+# deployctl/uninstall.sh — Remove deployctl binaries and library payload with confirmation.
 #
 # Further reading (exam / study index):
 #   Bash strict mode: http://redsymbol.net/articles/unofficial-bash-strict-mode/
-#   Bash arrays: https://www.gnu.org/software/bash/manual/html_node/Arrays.html
+#   Conditional regex match: https://www.gnu.org/software/bash/manual/html_node/Conditional-Constructs.html
 
 # =============================================================================
 # Strict mode
@@ -20,46 +20,53 @@
 set -euo pipefail
 
 # =============================================================================
-# Known install locations (system + user)
+# Install root (must match install.sh)
 # Study: https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
 # =============================================================================
-DEST="${INBOXCTL_INSTALL_ROOT:-/usr/local/lib/inboxctl}"
-USER_DEST="${HOME}/.local/lib/inboxctl"
+DEST="${DEPLOYCTL_INSTALL_ROOT:-/usr/local/lib/deployctl}"
 
 # -----------------------------------------------------------------------------
 # prompt_yes
-# Study: read + [[ =~ ]] for yes/no — https://www.gnu.org/software/bash/manual/html_node/Bash-Builtins.html#index-read
+# Args: $1=prompt string
+# Returns: 0 if user answered y/Y
+# Study: https://www.gnu.org/software/bash/manual/html_node/Bash-Builtins.html#index-read; [[ =~ ]]
 # -----------------------------------------------------------------------------
 prompt_yes() {
+    local prompt="$1"
     local ans
-    printf '%s [y/N] ' "$1" >&2
+    printf '%s [y/N] ' "$prompt" >&2
     read -r ans || ans="n"
     [[ "$ans" =~ ^[Yy]$ ]]
 }
 
 # -----------------------------------------------------------------------------
 # main
-# Study: array of paths — https://www.gnu.org/software/bash/manual/html_node/Arrays.html
+# Study: interactive guard rails before rm -rf — https://mywiki.wooledge.org/BashGuide/Practices
 # -----------------------------------------------------------------------------
 main() {
-    local BINDIRS=("${HOME}/.local/bin/inboxctl" "/usr/local/bin/inboxctl")
+    if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+        printf 'deployctl uninstall: must run as root\n' >&2
+        exit 1
+    fi
 
-    if ! prompt_yes "Remove inboxctl from PATH locations and ${DEST}?"; then
+    printf 'This removes /usr/local/bin/deployctl and %s\n' "$DEST"
+    if ! prompt_yes "Remove deployctl program files?"; then
         printf 'Aborted.\n'
         exit 0
     fi
 
-    for b in "${BINDIRS[@]}"; do
-        [[ -f "$b" ]] && rm -f "$b"
-    done
+    rm -f /usr/local/bin/deployctl
     rm -rf "$DEST"
-    rm -rf "$USER_DEST"
 
-    if prompt_yes "Remove ~/.config/inboxctl and ~/.cache/inboxctl?"; then
-        rm -rf "${HOME}/.config/inboxctl" "${HOME}/.cache/inboxctl"
+    if prompt_yes "Also remove /etc/deployctl and /var/lib/deployctl (configs, apps, env)?"; then
+        rm -rf /etc/deployctl /var/lib/deployctl
     fi
 
-    printf 'inboxctl uninstall finished.\n'
+    if prompt_yes "Also remove /var/log/deployctl and /var/cache/deployctl?"; then
+        rm -rf /var/log/deployctl /var/cache/deployctl
+    fi
+
+    printf 'deployctl uninstall finished.\n'
     return 0
 }
 

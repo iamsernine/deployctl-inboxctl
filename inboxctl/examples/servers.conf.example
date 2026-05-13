@@ -1,0 +1,13 @@
+# ------------------------------------------------------------------------------
+# Project: deployctl-inboxctl | SPDX-License-Identifier: MIT (see LICENSE)
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
+# ------------------------------------------------------------------------------
+# One file per server under ~/.config/inboxctl/servers.d/<name>.conf — example shape:
+#
+# SERVER_NAME=prod1
+# SSH_TARGET=deploy@203.0.113.10
+# CREATED_AT=2026-05-02-10-00-00
+# LAST_FETCH=2026-05-02-16-30-00
+#
+# Use: inboxctl add-server prod1 deploy@203.0.113.10

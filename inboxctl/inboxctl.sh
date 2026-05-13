@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # ------------------------------------------------------------------------------
-# project: deployctl-inboxctl: inboxctl
+# Project: deployctl-inboxctl
 # SPDX-License-Identifier: MIT (see LICENSE)
-# Maintainer: ACHAHROUR Mustapha <mustaphaachahrour@gmail.com>
-# Repository: https://github.com/iamsernine/deployctl-inboxctl
+# Maintainer: YOUR_NAME <YOUR_EMAIL>
+# Repository: https://github.com/YOUR_ORG/YOUR_REPO
 # ------------------------------------------------------------------------------
 #
 # inboxctl/inboxctl.sh — Local CLI to inspect remote deployctl state over SSH (read-only).
@@ -50,7 +50,7 @@ source "${SHARED}/validators.sh"
 # Study: https://mywiki.wooledge.org/BashGuide/CompoundCommands#Loops
 # =============================================================================
 INBOX_LIB="${SCRIPT_DIR}/lib"
-for _mod in mod_server.sh mod_ssh.sh mod_cache.sh mod_fetch.sh mod_parse.sh mod_ui.sh mod_watch.sh mod_cli.sh; do
+for _mod in mod_error.sh mod_server.sh mod_ssh.sh mod_cache.sh mod_fetch.sh mod_parse.sh mod_ui.sh mod_watch.sh mod_cli.sh; do
     # shellcheck source=/dev/null
     source "${INBOX_LIB}/${_mod}"
 done
@@ -64,8 +64,7 @@ inboxctl_cmd_add_server() {
     local name="${1:?}"
     local target="${2:?}"
     validate_app_name "$name" || {
-        printf 'inboxctl: invalid server name (use kebab-case like app names)\n' >&2
-        exit "$ERR_INVALID_APP_NAME"
+        inboxctl_exit_with_error "$ERR_INVALID_APP_NAME" "invalid server name (use kebab-case like app names)"
     }
     inboxctl_write_server_conf "$name" "$target"
     printf 'inboxctl: added server %s → %s\n' "$name" "$target"
@@ -101,7 +100,7 @@ inboxctl_cmd_show_servers() {
     shopt -s nullglob
     local p
     for p in "${INBOXCTL_SERVERS_DIR}"/*.conf; do
-        printf ' --- %s ---\n ' "$(basename "${p%.conf}")"
+        printf '--- %s ---\n' "$(basename "${p%.conf}")"
         cat "$p"
         printf '\n'
     done
@@ -119,8 +118,7 @@ inboxctl_cmd_test() {
         printf 'inboxctl: SSH OK for %s\n' "$name"
         return 0
     fi
-    printf 'inboxctl: SSH failed for %s\n' "$name" >&2
-    exit "$ERR_SSH_FAILED"
+    inboxctl_exit_with_error "$ERR_SSH_FAILED" "SSH failed for ${name}"
 }
 
 # -----------------------------------------------------------------------------
@@ -142,8 +140,7 @@ inboxctl_cmd_show_projects() {
     local cache
     cache="$(inboxctl_cache_root_for_server "$name")"
     if [[ ! -d "$cache/projects.d" ]]; then
-        printf 'inboxctl: no cache; run: inboxctl fetch %s\n' "$name" >&2
-        exit "$ERR_MISSING_PARAM"
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "no cache; run: inboxctl fetch ${name}"
     fi
     inboxctl_ui_print_projects_table "$cache"
     return 0
@@ -173,8 +170,7 @@ inboxctl_cmd_logs() {
     cache="$(inboxctl_cache_root_for_server "$name")"
     f="${cache}/logs/projects/${app}.log"
     if [[ ! -f "$f" ]]; then
-        printf 'inboxctl: log not cached for %s — run fetch\n' "$app" >&2
-        exit "$ERR_MISSING_PARAM"
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "log not cached for ${app}; run fetch"
     fi
     tail -n 80 "$f"
     return 0
@@ -190,8 +186,7 @@ inboxctl_cmd_errors() {
     cache="$(inboxctl_cache_root_for_server "$name")"
     h="${cache}/history.log"
     if [[ ! -f "$h" ]]; then
-        printf 'inboxctl: no history cached — run fetch\n' >&2
-        exit "$ERR_MISSING_PARAM"
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "no history cached; run fetch"
     fi
     grep ' : ERROR : ' "$h" || printf '(no ERROR lines)\n'
     return 0
@@ -224,8 +219,7 @@ inboxctl_dispatch() {
             ;;
         list)
             [[ "${1:-}" == "servers" ]] || {
-                printf 'inboxctl: use: list servers\n' >&2
-                exit "$ERR_MISSING_PARAM"
+                inboxctl_exit_with_error "$ERR_MISSING_PARAM" "use: list servers"
             }
             inboxctl_cmd_list_servers
             ;;
@@ -239,8 +233,7 @@ inboxctl_dispatch() {
                 pending) inboxctl_cmd_show_bucket "$STATUS_PENDING" "${1:-}" ;;
                 archive) inboxctl_cmd_show_bucket "$STATUS_ARCHIVE" "${1:-}" ;;
                 *)
-                    printf 'inboxctl: unknown show target\n' >&2
-                    exit "$ERR_UNKNOWN_OPTION"
+                    inboxctl_exit_with_error "$ERR_UNKNOWN_OPTION" "unknown show target"
                     ;;
             esac
             ;;
@@ -267,7 +260,7 @@ inboxctl_dispatch() {
             ;;
         *)
             inboxctl_print_usage
-            exit "$ERR_UNKNOWN_OPTION"
+            inboxctl_exit_with_error "$ERR_UNKNOWN_OPTION" "unknown command: ${cmd}"
             ;;
     esac
 }

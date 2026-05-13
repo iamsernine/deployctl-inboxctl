@@ -58,7 +58,7 @@ source "${SHARED}/validators.sh"
 # Study: https://mywiki.wooledge.org/BashGuide/CompoundCommands#Loops
 # =============================================================================
 DEPLOYCTL_LIB="${SCRIPT_DIR}/lib"
-for _mod in mod_log.sh mod_error.sh mod_cli.sh mod_check.sh mod_env.sh mod_git.sh mod_docker.sh mod_health.sh mod_nginx.sh mod_archive.sh mod_restore.sh mod_menu.sh; do
+for _mod in mod_log.sh mod_error.sh mod_cli.sh mod_check.sh mod_env.sh mod_git.sh mod_docker.sh mod_health.sh mod_nginx.sh mod_archive.sh mod_restore.sh mod_thread.sh mod_menu.sh; do
     # shellcheck source=/dev/null
     source "${DEPLOYCTL_LIB}/${_mod}"
 done
@@ -438,11 +438,25 @@ deployctl_dispatch() {
             deployctl_cmd_check
             ;;
         deploy)
-            if [[ "${DEPLOYCTL_SUBSHELL_MODE:-0}" == "1" ]]; then
+            if [[ "${DEPLOYCTL_THREAD_MODE:-0}" == "1" ]]; then
+                log_info "Mode thread active - execution parallele"
+                deployctl_parse_deploy_argv "$@"
+                deployctl_thread_deploy
+            elif [[ "${DEPLOYCTL_SUBSHELL_MODE:-0}" == "1" ]]; then
                 ( deployctl_cmd_deploy "$@" )
             elif [[ "${DEPLOYCTL_FORK_MODE:-0}" == "1" ]]; then
+                log_info "Mode fork active - PID parent: $$"
                 deployctl_cmd_deploy "$@" &
-                wait $!
+                local child_pid=$!
+                log_info "Mode fork - PID enfant: ${child_pid}, attente..."
+                local child_status=0
+                if wait "$child_pid"; then
+                    child_status=0
+                else
+                    child_status=$?
+                fi
+                log_info "Mode fork - processus enfant ${child_pid} termine (code=${child_status})"
+                return "$child_status"
             else
                 deployctl_cmd_deploy "$@"
             fi
@@ -492,8 +506,11 @@ deployctl_dispatch() {
 main() {
     deployctl_parse_global_options "$@"
     set -- "${REMAINING_ARGS[@]}"
-    if [[ "${DEPLOYCTL_RESTORE_MODE:-0}" == "1" ]] && [[ "${1:-}" != "restore" ]] && [[ "${1:-}" != "check" ]]; then
-        require_root || exit_with_error "$ERR_NOT_ROOT" "restore-mode requires root"
+    init_logs
+    setup_output_capture
+    if [[ "${DEPLOYCTL_RESTORE_MODE:-0}" == "1" ]]; then
+        deployctl_restore_defaults
+        exit 0
     fi
     deployctl_dispatch "$@"
 }

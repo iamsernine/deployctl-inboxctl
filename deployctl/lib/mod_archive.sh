@@ -85,6 +85,16 @@ deployctl_archive_app() {
         } >"${arch_dir}/restore.txt"
     fi
 
+    local tarball="${DEPLOYCTL_ARCHIVE_DIR}/${app}-$(current_timestamp).tar.gz"
+    if command -v tar >/dev/null 2>&1; then
+        if tar -czf "$tarball" -C "$DEPLOYCTL_ARCHIVE_DIR" "$app" 2>/dev/null; then
+            log_info "Archive compressee creee: ${tarball}"
+            log_project_info "$app" "Archive compressee: ${tarball}"
+        else
+            log_error "Echec de la compression de l'archive"
+        fi
+    fi
+
     write_key_value "$conf" "STATUS" "$STATUS_ARCHIVE"
     write_key_value "$conf" "LAST_DEPLOY" "$(current_timestamp)"
     log_project_info "$app" "archived; STATUS=${STATUS_ARCHIVE}"

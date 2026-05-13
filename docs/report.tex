@@ -1,0 +1,592 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\geometry{margin=2.3cm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue
+}
+
+\lstdefinestyle{bashstyle}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  rulecolor=\color{gray!35}
+}
+\lstset{style=bashstyle}
+
+\newcommand{\ProjectName}{deployctl-inboxctl}
+\newcommand{\TeamID}{TeamID}
+
+\title{\textbf{Compte rendu du mini-projet Shell}\\\ProjectName}
+\author{
+BEN YAMNA Mohammed \texttt{<iamsernine@gmail.com>}\\
+ACHAHROUR Mustapha \texttt{<mustaphaachahrour@gmail.com>}\\
+Naouali Houssam \texttt{<houssamnaouali04@gmail.com>}\\
+MEDINOU Soukaina \texttt{<soukainamedinou22@gmail.com>}
+}
+\date{Année universitaire 2025--2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+Ce mini-projet s'inscrit dans le module \og Théorie des systèmes d'exploitation et SE Windows/Unix/Linux \fg. L'objectif demandé est de développer un script Bash qui automatise un besoin réel, avec une syntaxe proche des commandes Linux classiques, une documentation accessible par \texttt{-h}, une gestion d'erreurs explicite, un système de journalisation et des scénarios de test léger, moyen et lourd.
+
+Le projet proposé est \textbf{\ProjectName}. Il contient deux outils complémentaires :
+\begin{itemize}[leftmargin=*]
+  \item \textbf{\texttt{deployctl}} : outil côté serveur pour automatiser le déploiement d'une application monolithique Docker sur un VPS avec \texttt{nginx}, journaux, archivage et restauration.
+  \item \textbf{\texttt{inboxctl}} : outil côté poste local pour consulter en lecture seule l'état des serveurs gérés par \texttt{deployctl}, via SSH et cache local.
+\end{itemize}
+
+Cette solution répond à un besoin fréquent chez les petites équipes : déployer rapidement une application Docker sur un seul serveur sans installer une plateforme lourde comme Kubernetes, tout en gardant une traçabilité claire et une manière simple d'inspecter l'état du serveur.
+
+\section{Besoin identifié}
+
+\subsection{Problème de départ}
+
+Dans un contexte réel de développement web, une équipe doit souvent effectuer plusieurs opérations répétitives pour mettre une application en production :
+\begin{itemize}[leftmargin=*]
+  \item cloner un dépôt Git ;
+  \item vérifier la présence d'un \texttt{Dockerfile} ;
+  \item préparer les variables d'environnement ;
+  \item construire une image Docker ;
+  \item démarrer un conteneur ;
+  \item vérifier la santé de l'application ;
+  \item générer une configuration \texttt{nginx} ;
+  \item consulter les logs ;
+  \item archiver ou restaurer une version.
+\end{itemize}
+
+Ces étapes sont sensibles aux erreurs humaines : mauvaise commande, mauvais port, oubli de relancer \texttt{nginx}, absence de log, oubli d'une variable d'environnement, mélange entre secrets et métadonnées, etc.
+
+\subsection{Solution proposée}
+
+\texttt{deployctl} automatise ces opérations dans un pipeline clair :
+
+\begin{center}
+\texttt{clone} $\rightarrow$ \texttt{env} $\rightarrow$ \texttt{build} $\rightarrow$ \texttt{run} $\rightarrow$ \texttt{health} $\rightarrow$ \texttt{nginx} $\rightarrow$ \texttt{ssl optionnel} $\rightarrow$ \texttt{live}
+\end{center}
+
+\texttt{inboxctl} complète cette logique en permettant à un utilisateur local de récupérer les informations d'un serveur sans modifier l'état distant. Il copie les métadonnées et journaux dans \texttt{\$HOME/.cache/inboxctl}.
+
+\subsection{Impact attendu}
+
+Le projet améliore :
+\begin{itemize}[leftmargin=*]
+  \item \textbf{le temps} : une seule commande remplace plusieurs manipulations manuelles ;
+  \item \textbf{la qualité} : validations, codes d'erreur, rollback et logs réduisent les défaillances ;
+  \item \textbf{la sécurité} : les secrets restent côté serveur dans \texttt{/var/lib/deployctl/env} ;
+  \item \textbf{l'observabilité} : les états, historiques et logs sont disponibles par commandes ;
+  \item \textbf{la maintenabilité} : le code est découpé en modules Bash.
+\end{itemize}
+
+\section{Architecture du projet}
+
+\subsection{Structure générale}
+
+\begin{lstlisting}
+deployctl-inboxctl/
++-- deployctl/          # script principal serveur + modules
++-- inboxctl/           # script principal local + modules
++-- shared/             # constantes, formatage, validateurs
++-- scripts/            # lint, format, verification docs
++-- docs/               # documentation projet
++-- .github/workflows/  # CI GitHub Actions
++-- AUTHORS.md
++-- README.md
++-- LICENSE
+\end{lstlisting}
+
+\subsection{Rôle des dossiers}
+
+\begin{longtable}{p{0.23\textwidth}p{0.68\textwidth}}
+\toprule
+\textbf{Dossier / fichier} & \textbf{Rôle} \\
+\midrule
+\texttt{deployctl/deployctl.sh} & Point d'entrée serveur. Il parse les options globales et dispatch les sous-commandes. \\
+\texttt{deployctl/lib/} & Modules spécialisés : Docker, Git, nginx, santé, archives, restauration, logs, erreurs. \\
+\texttt{inboxctl/inboxctl.sh} & Point d'entrée local pour inspecter les serveurs à distance. \\
+\texttt{inboxctl/lib/} & Modules SSH, fetch, cache, parsing, interface terminal. \\
+\texttt{shared/constants.sh} & Source unique des chemins, statuts et codes d'erreur. \\
+\texttt{shared/format.sh} & Format des logs, timestamps, lecture/écriture de fichiers de configuration. \\
+\texttt{shared/validators.sh} & Validation des noms d'application, domaines, ports et statuts. \\
+\texttt{scripts/} & Scripts de qualité : format, lint, vérification documentaire. \\
+\bottomrule
+\end{longtable}
+
+\section{Syntaxe d'exécution}
+
+La syntaxe respecte la forme demandée :
+
+\begin{lstlisting}
+yourprogramname [options] [parametre]
+\end{lstlisting}
+
+Dans notre projet, les deux commandes principales sont :
+
+\begin{lstlisting}
+deployctl [options-globales] <commande> [arguments]
+inboxctl [options-globales] <commande> [arguments]
+\end{lstlisting}
+
+Exemples :
+
+\begin{lstlisting}
+deployctl -n check
+deployctl deploy demo-app --repo https://example.com/demo.git --domain demo.example.com --port 8080 --ssl no
+inboxctl add-server prod1 deploy@192.168.1.10
+inboxctl fetch prod1
+\end{lstlisting}
+
+Le paramètre obligatoire est présent dans plusieurs commandes :
+\begin{itemize}[leftmargin=*]
+  \item \texttt{deployctl status <app>} exige le nom de l'application ;
+  \item \texttt{deployctl deploy <app>} exige au minimum l'application, le dépôt, le domaine et le port ;
+  \item \texttt{inboxctl test <server>} exige le nom du serveur ;
+  \item \texttt{inboxctl logs <server> <app>} exige le serveur et l'application.
+\end{itemize}
+
+\section{Options implémentées}
+
+Le cahier des charges demande au moins six options. \texttt{deployctl} en propose huit.
+
+\begin{longtable}{p{0.15\textwidth}p{0.23\textwidth}p{0.52\textwidth}}
+\toprule
+\textbf{Option} & \textbf{Nom long} & \textbf{Description} \\
+\midrule
+\texttt{-h} & \texttt{--help} & Affiche la documentation simplifiée dans le terminal. \\
+\texttt{-v} & \texttt{--verbose} & Active un affichage plus détaillé des logs. \\
+\texttt{-n} & \texttt{--dry-run} & Simule les traitements sans modifier le système. Utile pour les tests. \\
+\texttt{-l DIR} & \texttt{--log-dir DIR} & Spécifie un répertoire de journalisation, surtout utile en test. \\
+\texttt{-f} & \texttt{--fork} & Exécute la partie lourde dans un contexte de processus fils pour démontrer le fork. \\
+\texttt{-t} & \texttt{--thread} & Active le mode logique \og thread \fg, réservé aux tests et à la démonstration. \\
+\texttt{-s} & \texttt{--subshell} & Exécute le traitement de déploiement dans un sous-shell. \\
+\texttt{-r} & \texttt{--restore-mode} & Active un mode de restauration, réservé aux opérations administrateur. \\
+\bottomrule
+\end{longtable}
+
+\texttt{inboxctl} possède également :
+\begin{itemize}[leftmargin=*]
+  \item \texttt{-h}/\texttt{--help} pour l'aide ;
+  \item \texttt{-v}/\texttt{--verbose} pour afficher les diagnostics SSH/SCP.
+\end{itemize}
+
+\section{Privilèges administrateur}
+
+Certaines opérations doivent être exécutées avec des privilèges administrateur, car elles écrivent dans des dossiers système ou modifient l'état du serveur :
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{deployctl deploy} : écrit dans \texttt{/etc/deployctl}, \texttt{/var/lib/deployctl}, \texttt{/var/log/deployctl}, manipule Docker et nginx ;
+  \item \texttt{deployctl archive} : déplace une application de \texttt{live} vers \texttt{archive} ;
+  \item \texttt{deployctl restore} : restaure une application archivée ;
+  \item \texttt{deployctl ssl} : lance \texttt{certbot} et modifie la configuration TLS ;
+  \item \texttt{-r}/\texttt{--restore-mode} : vérifie les privilèges root avant les opérations sensibles.
+\end{itemize}
+
+La fonction \texttt{require\_root} utilise \texttt{EUID} ou \texttt{id -u} pour vérifier que l'utilisateur est root.
+
+\section{Concepts Linux et Bash utilisés}
+
+Le projet intègre plusieurs notions vues dans le module Linux/Unix :
+
+\begin{longtable}{p{0.26\textwidth}p{0.63\textwidth}}
+\toprule
+\textbf{Concept} & \textbf{Implémentation dans le projet} \\
+\midrule
+Conditions & \texttt{if}, \texttt{case}, tests \texttt{[[ ... ]]}, validation de statuts et options. \\
+Boucles & Parcours des modules à charger, parcours des fichiers de configuration, affichage des listes. \\
+Fonctions & Chaque opération importante est encapsulée : validation, logs, Docker, nginx, archive, restore. \\
+Variables d'environnement & \texttt{DEPLOY\_SHARED\_ROOT}, \texttt{DEPLOYCTL\_LOG\_DIR\_OVERRIDE}, \texttt{HOME}, \texttt{USER}. \\
+Expressions régulières & Validation des noms d'application, domaines et ports. \\
+Manipulation de fichiers & \texttt{mkdir}, \texttt{touch}, \texttt{mv}, \texttt{rm}, \texttt{tail}, \texttt{mktemp}, lecture de fichiers \texttt{KEY=value}. \\
+Recherche / archivage & Gestion des dossiers \texttt{pending}, \texttt{live}, \texttt{archive}, restauration. \\
+Contrôle d'accès & Vérification root et séparation des secrets dans \texttt{/var/lib/deployctl/env}. \\
+Pipes et filtres & Utilisation prévue avec \texttt{tail}, \texttt{sed}, \texttt{grep}/\texttt{rg} en inspection, et scripts de lint. \\
+Processus & Modes \texttt{-f}, \texttt{-s}, appels à Docker, Git, nginx, SSH/SCP. \\
+\bottomrule
+\end{longtable}
+
+\section{Journalisation}
+
+Le cahier des charges impose une journalisation dans un fichier \texttt{history.log}, avec un format contenant la date, l'utilisateur, le type de message et le contenu.
+
+Dans le projet, les logs de \texttt{deployctl} sont stockés par défaut dans :
+
+\begin{lstlisting}
+/var/log/deployctl/history.log
+/var/log/deployctl/projects/<app>.log
+\end{lstlisting}
+
+Le format est généré par \texttt{shared/format.sh} :
+
+\begin{lstlisting}
+yyyy-mm-dd-hh-mm-ss : username : INFOS : message
+yyyy-mm-dd-hh-mm-ss : username : ERROR : message
+\end{lstlisting}
+
+Exemple attendu :
+
+\begin{lstlisting}
+2026-05-12-20-15-30 : deploy : INFOS : deployctl check starting
+2026-05-12-20-15-31 : deploy : ERROR : dependency check failed
+\end{lstlisting}
+
+L'option \texttt{-l} permet aussi de choisir un dossier de log temporaire pendant les tests :
+
+\begin{lstlisting}
+deployctl -n -l /tmp/deployctl-report-logs check
+cat /tmp/deployctl-report-logs/history.log
+\end{lstlisting}
+
+\section{Gestion d'erreurs}
+
+La gestion d'erreurs est centralisée dans \texttt{deployctl/lib/mod\_error.sh}. Les codes sont définis dans \texttt{shared/constants.sh}. Chaque erreur fatale :
+\begin{itemize}[leftmargin=*]
+  \item écrit une ligne \texttt{ERROR} dans le journal ;
+  \item affiche un message explicite ;
+  \item retourne un code numérique spécifique ;
+  \item conseille d'exécuter \texttt{deployctl --help}.
+\end{itemize}
+
+\begin{longtable}{p{0.14\textwidth}p{0.35\textwidth}p{0.40\textwidth}}
+\toprule
+\textbf{Code} & \textbf{Nom} & \textbf{Cas typique} \\
+\midrule
+100 & \texttt{UNKNOWN\_OPTION} & Option inconnue. \\
+101 & \texttt{MISSING\_PARAM} & Paramètre obligatoire manquant. \\
+102 & \texttt{INVALID\_APP\_NAME} & Nom d'application invalide. \\
+103 & \texttt{INVALID\_DOMAIN} & Domaine invalide. \\
+104 & \texttt{PORT\_IN\_USE} & Port déjà utilisé. \\
+105 & \texttt{DOCKERFILE\_MISSING} & Absence de \texttt{Dockerfile}. \\
+107 & \texttt{DOCKER\_BUILD\_FAILED} & Construction Docker échouée. \\
+109 & \texttt{HEALTH\_CHECK\_FAILED} & Test de santé échoué. \\
+110 & \texttt{NGINX\_CONFIG\_FAILED} & Configuration nginx invalide. \\
+112 & \texttt{NOT\_ROOT} & Commande nécessitant root. \\
+116 & \texttt{DEPENDENCY\_MISSING} & Dépendance système absente. \\
+119 & \texttt{ARCHIVE\_FAILED} & Archivage impossible. \\
+120 & \texttt{RESTORE\_FAILED} & Restauration impossible. \\
+\bottomrule
+\end{longtable}
+
+\section{Fonctionnement de deployctl}
+
+\subsection{Commande check}
+
+\texttt{deployctl check} vérifie les dépendances nécessaires et la structure de répertoires. En mode \texttt{-n}, il fonctionne comme test sans mutation :
+
+\begin{lstlisting}
+deployctl -n check
+\end{lstlisting}
+
+\subsection{Commande deploy}
+
+La commande suivante déploie une application Docker :
+
+\begin{lstlisting}
+sudo deployctl deploy demo-app \
+  --repo https://github.com/example/demo-app.git \
+  --domain demo.example.com \
+  --port 8080 \
+  --ssl no
+\end{lstlisting}
+
+Étapes internes :
+\begin{enumerate}[leftmargin=*]
+  \item validation du nom, domaine et port ;
+  \item vérification des dépendances ;
+  \item clonage Git dans le dossier \texttt{pending} ;
+  \item création ou collecte du fichier d'environnement ;
+  \item construction de l'image Docker ;
+  \item lancement du conteneur ;
+  \item test de santé HTTP ;
+  \item génération et test de la configuration nginx ;
+  \item promotion vers \texttt{live} ;
+  \item écriture de \texttt{/etc/deployctl/projects.d/demo-app.conf}.
+\end{enumerate}
+
+\subsection{Rollback}
+
+En cas d'échec pendant le déploiement, \texttt{cleanup\_on\_error} tente de :
+\begin{itemize}[leftmargin=*]
+  \item supprimer le conteneur partiellement créé ;
+  \item supprimer le dossier \texttt{pending} ;
+  \item supprimer la configuration nginx cassée ;
+  \item marquer l'application en \texttt{STATUS=error} si une configuration existe.
+\end{itemize}
+
+\section{Fonctionnement de inboxctl}
+
+\texttt{inboxctl} est un outil local de consultation. Il ne modifie pas l'état distant. Son rôle est de récupérer les fichiers utiles par SSH/SCP, puis de les afficher sous forme lisible.
+
+Configuration d'un serveur :
+
+\begin{lstlisting}
+inboxctl add-server prod1 deploy@192.168.1.10
+inboxctl test prod1
+\end{lstlisting}
+
+Récupération et affichage :
+
+\begin{lstlisting}
+inboxctl fetch prod1
+inboxctl show projects prod1
+inboxctl logs prod1 demo-app
+\end{lstlisting}
+
+Les données locales sont stockées sous :
+
+\begin{lstlisting}
+~/.config/inboxctl/servers.d/
+~/.cache/inboxctl/servers/
+\end{lstlisting}
+
+\section{Sécurité}
+
+Le projet applique plusieurs règles de sécurité :
+\begin{itemize}[leftmargin=*]
+  \item \texttt{inboxctl} fonctionne en lecture seule côté serveur ;
+  \item les mots de passe SSH ne sont pas stockés ;
+  \item les secrets applicatifs ne sont pas dans les fichiers \texttt{.conf} versionnés ;
+  \item les secrets de production sont conservés côté serveur dans \texttt{/var/lib/deployctl/env/<app>.env} ;
+  \item les opérations sensibles exigent root ;
+  \item les statuts autorisés sont limités à \texttt{pending}, \texttt{live}, \texttt{archive}, \texttt{error}.
+\end{itemize}
+
+\section{Plan de test}
+
+Le cahier des charges demande au moins trois scénarios : léger, moyen et lourd. Le projet contient ces scénarios dans \texttt{deployctl/tests/}.
+
+\begin{longtable}{p{0.18\textwidth}p{0.36\textwidth}p{0.36\textwidth}}
+\toprule
+\textbf{Scénario} & \textbf{Commande} & \textbf{Objectif} \\
+\midrule
+Léger & \texttt{bash deployctl/tests/test\_light.sh} & Vérifier \texttt{check} en mode dry-run. \\
+Moyen & \texttt{bash deployctl/tests/test\_medium.sh} & Tester \texttt{deploy} avec paramètres explicites sans Docker réel. \\
+Lourd & \texttt{bash deployctl/tests/test\_heavy.sh} & Tester les modes \texttt{-f}, \texttt{-t}, \texttt{-s}. \\
+\bottomrule
+\end{longtable}
+
+Des tests supplémentaires existent pour \texttt{inboxctl} :
+
+\begin{lstlisting}
+bash inboxctl/tests/test_parse_conf.sh
+bash inboxctl/tests/test_parse_logs.sh
+\end{lstlisting}
+
+\section{Commandes à exécuter pour les captures du rapport}
+
+Cette section donne les commandes concrètes à exécuter sur Linux, WSL ou Git Bash. Les captures d'écran peuvent être placées dans la version PDF du compte rendu après chaque bloc.
+
+\subsection{1. Afficher l'aide}
+
+\begin{lstlisting}
+bash deployctl/deployctl.sh --help
+bash inboxctl/inboxctl.sh --help
+\end{lstlisting}
+
+Capture attendue : affichage de la syntaxe, options et commandes.
+
+\subsection{2. Afficher la version}
+
+\begin{lstlisting}
+bash deployctl/deployctl.sh version
+bash inboxctl/inboxctl.sh version
+\end{lstlisting}
+
+\subsection{3. Vérifier les codes d'erreur}
+
+\begin{lstlisting}
+bash deployctl/deployctl.sh errors-help
+bash deployctl/deployctl.sh --bad-option
+echo $?
+\end{lstlisting}
+
+Résultat attendu : code \texttt{100} pour option inconnue.
+
+\subsection{4. Tester la journalisation}
+
+\begin{lstlisting}
+LOGDIR=/tmp/deployctl-report-logs
+rm -rf "$LOGDIR"
+bash deployctl/deployctl.sh -n -v -l "$LOGDIR" check
+cat "$LOGDIR/history.log"
+\end{lstlisting}
+
+Capture attendue : lignes contenant \texttt{INFOS} avec timestamp et utilisateur.
+
+\subsection{5. Scénario léger}
+
+\begin{lstlisting}
+bash deployctl/tests/test_light.sh
+\end{lstlisting}
+
+Résultat attendu :
+
+\begin{lstlisting}
+test_light: OK
+\end{lstlisting}
+
+\subsection{6. Scénario moyen}
+
+\begin{lstlisting}
+bash deployctl/tests/test_medium.sh
+\end{lstlisting}
+
+Résultat attendu :
+
+\begin{lstlisting}
+test_medium: OK
+\end{lstlisting}
+
+\subsection{7. Scénario lourd : fork, thread, subshell}
+
+\begin{lstlisting}
+bash deployctl/tests/test_heavy.sh
+\end{lstlisting}
+
+Résultat attendu :
+
+\begin{lstlisting}
+test_heavy: OK
+\end{lstlisting}
+
+\subsection{8. Tests inboxctl}
+
+\begin{lstlisting}
+bash inboxctl/tests/test_parse_conf.sh
+bash inboxctl/tests/test_parse_logs.sh
+\end{lstlisting}
+
+Résultat attendu :
+
+\begin{lstlisting}
+test_parse_conf: OK
+test_parse_logs: OK
+\end{lstlisting}
+
+\subsection{9. Démonstration réelle sur VPS}
+
+Ces commandes nécessitent un serveur Linux avec Docker, nginx, git et curl.
+
+\begin{lstlisting}
+sudo bash deployctl/install.sh
+sudo deployctl check
+sudo deployctl deploy demo-app \
+  --repo https://github.com/example/demo-app.git \
+  --domain demo.example.com \
+  --port 8080 \
+  --ssl no
+sudo deployctl status demo-app
+sudo deployctl logs demo-app
+sudo deployctl list live
+\end{lstlisting}
+
+\subsection{10. Archivage et restauration}
+
+\begin{lstlisting}
+sudo deployctl archive demo-app
+sudo deployctl list archive
+sudo deployctl restore demo-app
+sudo deployctl status demo-app
+\end{lstlisting}
+
+\subsection{11. Démonstration inboxctl}
+
+À exécuter depuis le poste local :
+
+\begin{lstlisting}
+bash inboxctl/install.sh
+inboxctl add-server prod1 deploy@YOUR_SERVER_IP
+inboxctl test prod1
+inboxctl fetch prod1
+inboxctl show projects prod1
+inboxctl show live prod1
+inboxctl logs prod1 demo-app
+\end{lstlisting}
+
+\subsection{12. Vérification qualité}
+
+\begin{lstlisting}
+bash scripts/format.sh
+bash scripts/lint.sh
+bash scripts/check-docs.sh
+\end{lstlisting}
+
+\section{Compilation du compte rendu}
+
+Pour générer le PDF du compte rendu :
+
+\begin{lstlisting}
+pdflatex -interaction=nonstopmode docs/report.tex
+pdflatex -interaction=nonstopmode docs/report.tex
+\end{lstlisting}
+
+Ou avec \texttt{latexmk} :
+
+\begin{lstlisting}
+latexmk -pdf docs/report.tex
+\end{lstlisting}
+
+Le fichier final doit être renommé selon le format demandé :
+
+\begin{lstlisting}
+mv report.pdf TeamID-devoir-shell.pdf
+\end{lstlisting}
+
+Remarque : remplacer \texttt{TeamID} par l'identifiant réel de l'équipe avant la soumission.
+
+\section{Préparation du fichier de soumission}
+
+Le cahier des charges demande une archive ZIP nommée :
+
+\begin{lstlisting}
+TeamID-devoir-shell.zip
+\end{lstlisting}
+
+Elle doit contenir :
+\begin{itemize}[leftmargin=*]
+  \item \texttt{TeamID-devoir-shell.pdf} : compte rendu ;
+  \item \texttt{TeamID-devoir-shell.pptx} : présentation d'une seule diapositive ;
+  \item le script principal et les scripts complémentaires nécessaires.
+\end{itemize}
+
+Commande possible :
+
+\begin{lstlisting}
+zip -r TeamID-devoir-shell.zip \
+  TeamID-devoir-shell.pdf \
+  TeamID-devoir-shell.pptx \
+  deployctl inboxctl shared scripts docs README.md AUTHORS.md LICENSE
+\end{lstlisting}
+
+Commande équivalente sous PowerShell :
+
+\begin{lstlisting}
+Compress-Archive -Path TeamID-devoir-shell.pdf,TeamID-devoir-shell.pptx,deployctl,inboxctl,shared,scripts,docs,README.md,AUTHORS.md,LICENSE -DestinationPath TeamID-devoir-shell.zip -Force
+\end{lstlisting}
+
+\section{Conclusion}
+
+\ProjectName{} répond aux directives du mini-projet en proposant un besoin réel, utile et orienté administration système : automatiser le déploiement d'applications Docker sur un VPS et permettre leur inspection en lecture seule. Le projet utilise Bash, des commandes Linux standards, des paramètres obligatoires, plus de six options, des privilèges administrateur pour les actions sensibles, une journalisation structurée, des codes d'erreur spécifiques et des scénarios de test léger, moyen et lourd.
+
+La solution reste volontairement simple et adaptée à un seul serveur : elle n'essaie pas de remplacer Kubernetes ou Ansible, mais fournit une automatisation claire, compréhensible et démontrable dans le cadre du module.
+
+\end{document}
