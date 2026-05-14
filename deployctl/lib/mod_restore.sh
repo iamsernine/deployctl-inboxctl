@@ -32,6 +32,12 @@ deployctl_restore_app() {
     local conf="${DEPLOYCTL_PROJECTS_DIR}/${app}.conf"
     local envf="${DEPLOYCTL_ENV_DIR}/${app}.env"
 
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" == "1" ]]; then
+        log_project_info "$app" "[dry-run] restore: would read ${conf} and ${envf}"
+        log_project_info "$app" "[dry-run] restore: would clone/build/run/health/nginx and set STATUS=${STATUS_LIVE}"
+        return 0
+    fi
+
     if [[ ! -f "$conf" ]]; then
         log_error "missing ${conf}"
         return 1
@@ -41,7 +47,7 @@ deployctl_restore_app() {
         exit_with_error "$ERR_FILE_PERMISSION_ERROR" "env file required for restore"
     fi
 
-    local repo domain port dockerfile ssl
+    local repo domain port dockerfile ssl status
     repo="$(read_conf_value "$conf" REPO_URL)" || {
         exit_with_error "$ERR_CONFIG_PARSE_ERROR" "REPO_URL missing"
     }
@@ -49,6 +55,12 @@ deployctl_restore_app() {
     port="$(read_conf_value "$conf" PORT)" || port="8080"
     dockerfile="$(read_conf_value "$conf" DOCKERFILE_PATH)" || dockerfile="Dockerfile"
     ssl="$(read_conf_value "$conf" SSL_ENABLED)" || ssl="no"
+    status="$(read_conf_value "$conf" STATUS)" || status=""
+
+    if [[ "$status" != "$STATUS_ARCHIVE" ]]; then
+        log_project_error "$app" "restore refused: STATUS=${status:-unknown}, expected ${STATUS_ARCHIVE}"
+        return 1
+    fi
 
     DEPLOYCTL_ROLLBACK_APP="$app"
     local pending="${DEPLOYCTL_PENDING_DIR}/${app}"

@@ -55,6 +55,7 @@ main() {
 
     mkdir -p "$BINDIR"
     mkdir -p "$DEST"
+    rm -rf "${DEST}/shared" "${DEST}/inboxctl"
     cp -a "${ROOT}/shared" "$DEST/"
     cp -a "${SCRIPT_DIR}" "$DEST/inboxctl"
 

@@ -126,7 +126,11 @@ inboxctl_cmd_test() {
 # Study: scp over SSH — https://man.openbsd.org/scp.1
 # -----------------------------------------------------------------------------
 inboxctl_cmd_fetch() {
-    local name="${1:?}"
+    local name="${1:-}"
+    local extra="${2:-}"
+    if [[ -z "$name" || -n "$extra" ]]; then
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "use: inboxctl fetch <server>"
+    fi
     inboxctl_fetch_server_data "$name"
     return 0
 }
@@ -164,13 +168,26 @@ inboxctl_cmd_show_bucket() {
 # Study: POSIX tail — https://pubs.opengroup.org/onlinepubs/9699919799/utilities/tail.html
 # -----------------------------------------------------------------------------
 inboxctl_cmd_logs() {
-    local name="${1:?}"
-    local app="${2:?}"
+    local name="${1:-}"
+    local app="${2:-}"
+    if [[ -z "$name" || -z "$app" ]]; then
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "use: inboxctl logs <server> <app>"
+    fi
     local cache f
     cache="$(inboxctl_cache_root_for_server "$name")"
     f="${cache}/logs/projects/${app}.log"
     if [[ ! -f "$f" ]]; then
-        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "log not cached for ${app}; run fetch"
+        local available=""
+        shopt -s nullglob
+        local log_file
+        for log_file in "${cache}/logs/projects/"*.log; do
+            available+=" $(basename "${log_file%.log}")"
+        done
+        shopt -u nullglob
+        if [[ -n "$available" ]]; then
+            inboxctl_exit_with_error "$ERR_MISSING_PARAM" "log not cached for ${app}; available logs:${available}"
+        fi
+        inboxctl_exit_with_error "$ERR_MISSING_PARAM" "log not cached for ${app}; run: inboxctl fetch ${name}"
     fi
     tail -n 80 "$f"
     return 0
@@ -241,7 +258,7 @@ inboxctl_dispatch() {
             inboxctl_cmd_test "${1:-}"
             ;;
         fetch)
-            inboxctl_cmd_fetch "${1:-}"
+            inboxctl_cmd_fetch "${1:-}" "${2:-}"
             ;;
         logs)
             inboxctl_cmd_logs "${1:-}" "${2:-}"

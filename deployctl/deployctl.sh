@@ -398,7 +398,9 @@ deployctl_cmd_ssl() {
 #        (compose CLI from small functions; fail fast with exit_with_error)
 # -----------------------------------------------------------------------------
 deployctl_cmd_archive() {
-    require_root || exit_with_error "$ERR_NOT_ROOT" "archive requires root"
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" != "1" ]]; then
+        require_root || exit_with_error "$ERR_NOT_ROOT" "archive requires root"
+    fi
     init_logs
     local app="${1:?}"
     validate_app_name "$app" || exit_with_error "$ERR_INVALID_APP_NAME" "invalid app"
@@ -412,7 +414,9 @@ deployctl_cmd_archive() {
 #        https://mywiki.wooledge.org/BashGuide/Practices#errexit (|| exit_with_error)
 # -----------------------------------------------------------------------------
 deployctl_cmd_restore() {
-    require_root || exit_with_error "$ERR_NOT_ROOT" "restore requires root"
+    if [[ "${DEPLOYCTL_DRY_RUN:-0}" != "1" ]]; then
+        require_root || exit_with_error "$ERR_NOT_ROOT" "restore requires root"
+    fi
     init_logs
     local app="${1:?}"
     validate_app_name "$app" || exit_with_error "$ERR_INVALID_APP_NAME" "invalid app"
