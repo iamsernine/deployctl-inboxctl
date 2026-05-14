@@ -65,9 +65,16 @@ deployctl_archive_app() {
     deployctl_docker_stop_remove "$container" || true
 
     local remove_image=0
-    printf 'Remove Docker image %s%s:latest? [y/N] ' "${IMAGE_PREFIX}" "$app" >&2
-    local ans
-    read -r ans || ans="n"
+    local ans="n"
+    if [[ -r /dev/tty && -w /dev/tty ]]; then
+        printf 'Remove Docker image %s%s:latest? [y/N] ' "${IMAGE_PREFIX}" "$app" >/dev/tty
+        read -r ans </dev/tty || ans="n"
+    elif [[ -t 0 ]]; then
+        printf 'Remove Docker image %s%s:latest? [y/N] ' "${IMAGE_PREFIX}" "$app" >&2
+        read -r ans || ans="n"
+    else
+        log_project_info "$app" "non-interactive archive: keeping Docker image"
+    fi
     [[ "$ans" =~ ^[Yy]$ ]] && remove_image=1
 
     if [[ $remove_image -eq 1 ]]; then

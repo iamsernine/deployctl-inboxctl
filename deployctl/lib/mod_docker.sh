@@ -102,6 +102,6 @@ deployctl_docker_stop_remove() {
         log_info "[dry-run] docker rm -f $c"
         return 0
     fi
-    docker rm -f "$c" 2>/dev/null || true
+    docker rm -f "$c" >/dev/null 2>&1 || true
     return 0
 }
